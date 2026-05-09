@@ -36,6 +36,15 @@ yarn-error.log*
 # vercel
 .vercel
 
+# spec/reference files
+*.pdf
+
+# claude
+.claude/
+
+# misc generated
+nul
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
