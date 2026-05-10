@@ -12,6 +12,7 @@ import type { ChallengeTemplate } from "@/types/challenge";
 
 type Audience = "classroom" | "office" | "universal";
 type Mode = "quick_play" | "pack_play" | "tournament";
+type LocationType = "anywhere" | "classroom" | "park" | "restaurant" | "home" | "beach" | "office";
 
 interface PackInfo {
   id: string;
@@ -49,47 +50,36 @@ const MODE_OPTIONS: { value: Mode; label: string; description: string; icon: str
   },
 ];
 
-const PACKS: PackInfo[] = [
-  {
-    id: "pack_laugh_lab",
-    name: "Laugh Lab",
-    description: "High-energy comedy challenges that get everyone roaring",
-    icon: "\u{1F923}",
-    challengeCount: 12,
-    color: "retro-pink",
-  },
-  {
-    id: "pack_quiet_chaos",
-    name: "Quiet Chaos",
-    description: "Low-noise challenges perfect for shared spaces",
-    icon: "\u{1F910}",
-    challengeCount: 10,
-    color: "retro-blue",
-  },
-  {
-    id: "pack_friday_fun",
-    name: "Friday Fun",
-    description: "End-of-week vibes with creative and silly challenges",
-    icon: "\u{1F389}",
-    challengeCount: 14,
-    color: "retro-gold",
-  },
-  {
-    id: "pack_workshop_boost",
-    name: "Workshop Boost",
-    description: "Professional team-building with a competitive twist",
-    icon: "\u{1F4BC}",
-    challengeCount: 8,
-    color: "retro-green",
-  },
-  {
-    id: "pack_universal_hype",
-    name: "Universal Hype",
-    description: "The best of everything -- works for any crowd",
-    icon: "\u{1F525}",
-    challengeCount: 16,
-    color: "retro-purple",
-  },
+const GLOW_COLORS: Record<string, "pink" | "blue" | "gold" | "green" | "purple"> = {
+  "retro-pink": "pink",
+  "retro-blue": "blue",
+  "retro-gold": "gold",
+  "retro-green": "green",
+  "retro-purple": "purple",
+};
+
+const ICON_EMOJI: Record<string, string> = {
+  laugh: "\u{1F923}",
+  "volume-x": "\u{1F910}",
+  "party-popper": "\u{1F389}",
+  briefcase: "\u{1F4BC}",
+  zap: "\u26A1",
+  rocket: "\u{1F680}",
+};
+
+function packIcon(icon: string | null | undefined): string {
+  if (!icon) return "\u{1F3AE}";
+  return ICON_EMOJI[icon] || icon;
+}
+
+const LOCATION_OPTIONS: { value: LocationType; label: string; icon: string }[] = [
+  { value: "anywhere", label: "Anywhere", icon: "\u{1F30D}" },
+  { value: "classroom", label: "Classroom", icon: "\u{1F3EB}" },
+  { value: "park", label: "Park", icon: "\u{1F333}" },
+  { value: "restaurant", label: "Restaurant", icon: "\u{1F37D}" },
+  { value: "home", label: "Home", icon: "\u{1F3E0}" },
+  { value: "beach", label: "Beach", icon: "\u{1F3D6}" },
+  { value: "office", label: "Office", icon: "\u{1F3E2}" },
 ];
 
 const BRACKET_SIZES = [8, 16, 32];
@@ -104,13 +94,17 @@ export default function CreateEventPage() {
   const [audience, setAudience] = useState<Audience>("universal");
   const [mode, setMode] = useState<Mode>("quick_play");
   const [teamMode, setTeamMode] = useState(false);
+  const [teamCount, setTeamCount] = useState(2);
+  const [location, setLocation] = useState<LocationType>("anywhere");
 
   // Step 2: Challenges
   const [selectedPackId, setSelectedPackId] = useState<string | null>(null);
   const [selectedChallengeIds, setSelectedChallengeIds] = useState<string[]>([]);
   const [bracketSize, setBracketSize] = useState(16);
   const [challenges, setChallenges] = useState<ChallengeTemplate[]>([]);
+  const [packs, setPacks] = useState<PackInfo[]>([]);
   const [loadingChallenges, setLoadingChallenges] = useState(false);
+  const [loadingPacks, setLoadingPacks] = useState(false);
 
   // Step 3: Launch
   const [maxParticipants, setMaxParticipants] = useState(50);
@@ -124,6 +118,14 @@ export default function CreateEventPage() {
         .then((data) => setChallenges(data))
         .catch(() => setChallenges([]))
         .finally(() => setLoadingChallenges(false));
+    }
+    if (step === 2 && mode === "pack_play" && packs.length === 0) {
+      setLoadingPacks(true);
+      fetch("/api/packs")
+        .then((res) => res.json())
+        .then((data) => setPacks(data))
+        .catch(() => setPacks([]))
+        .finally(() => setLoadingPacks(false));
     }
   }, [step, mode]);
 
@@ -161,7 +163,9 @@ export default function CreateEventPage() {
         mode,
         audience,
         teamMode,
+        teamCount: teamMode ? teamCount : undefined,
         maxParticipants,
+        settings: { location },
       };
 
       if (mode === "pack_play" && selectedPackId) {
@@ -198,12 +202,12 @@ export default function CreateEventPage() {
   // Compute summary for step 3
   const challengeCount =
     mode === "pack_play"
-      ? PACKS.find((p) => p.id === selectedPackId)?.challengeCount || 0
+      ? packs.find((p) => p.id === selectedPackId)?.challengeCount || 0
       : selectedChallengeIds.length;
 
   const selectedPackName =
     mode === "pack_play"
-      ? PACKS.find((p) => p.id === selectedPackId)?.name || ""
+      ? packs.find((p) => p.id === selectedPackId)?.name || ""
       : "";
 
   return (
@@ -333,6 +337,58 @@ export default function CreateEventPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Team count selector (visible when team mode is on) */}
+              {teamMode && (
+                <div>
+                  <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-3">
+                    Number of Teams
+                  </p>
+                  <div className="flex gap-3">
+                    {[2, 3, 4].map((count) => (
+                      <button
+                        key={count}
+                        onClick={() => setTeamCount(count)}
+                        className={cn(
+                          "flex-1 py-3 font-retro text-xs border-2 transition-all",
+                          teamCount === count
+                            ? "border-retro-purple bg-retro-purple/10 text-retro-purple-light shadow-[0_0_12px_rgba(168,85,247,0.2)]"
+                            : "border-retro-muted/20 bg-elevated text-retro-muted hover:border-retro-muted/40"
+                        )}
+                      >
+                        {count} Teams
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Location selector */}
+              <div>
+                <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-3">
+                  Location
+                </p>
+                <p className="font-body text-xs text-retro-muted/60 mb-3">
+                  Filter challenges suited to your setting
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {LOCATION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setLocation(opt.value)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-2 border-2 transition-all duration-200 font-retro text-[9px] uppercase",
+                        location === opt.value
+                          ? "border-retro-green bg-retro-green/10 text-retro-green shadow-[0_0_12px_rgba(57,255,20,0.15)]"
+                          : "border-retro-muted/20 bg-elevated text-retro-muted hover:border-retro-muted/40"
+                      )}
+                    >
+                      <span className="text-base">{opt.icon}</span>
+                      <span>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
@@ -345,58 +401,65 @@ export default function CreateEventPage() {
                   <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-4">
                     Choose a Challenge Pack
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {PACKS.map((pack) => {
-                      const isSelected = selectedPackId === pack.id;
-                      const glowMap: Record<string, "pink" | "blue" | "gold" | "green" | "purple"> = {
-                        "retro-pink": "pink",
-                        "retro-blue": "blue",
-                        "retro-gold": "gold",
-                        "retro-green": "green",
-                        "retro-purple": "purple",
-                      };
-                      return (
-                        <RetroCard
-                          key={pack.id}
-                          glow={isSelected ? glowMap[pack.color] || "purple" : "none"}
-                          hoverable
-                          padding="md"
-                          className={cn(
-                            "cursor-pointer",
-                            isSelected && "ring-1 ring-retro-green/50"
-                          )}
-                        >
-                          <div
-                            onClick={() => setSelectedPackId(isSelected ? null : pack.id)}
-                            className="text-center space-y-2"
-                          >
-                            <span className="text-4xl">{pack.icon}</span>
-                            <h3
-                              className={cn(
-                                "font-retro text-[10px] uppercase",
-                                isSelected
-                                  ? "text-retro-green"
-                                  : "text-retro-text"
-                              )}
-                            >
-                              {pack.name}
-                            </h3>
-                            <p className="font-body text-xs text-retro-muted">
-                              {pack.description}
-                            </p>
-                            <span className="inline-block font-retro text-[8px] px-2 py-0.5 bg-elevated border border-retro-muted/20 text-retro-muted">
-                              {pack.challengeCount} CHALLENGES
-                            </span>
-                            {isSelected && (
-                              <div className="font-retro text-[9px] text-retro-green">
-                                SELECTED \u2713
-                              </div>
+                  {loadingPacks ? (
+                    <div className="text-center py-12">
+                      <p className="font-retro text-xs text-retro-purple-light animate-pulse">
+                        LOADING PACKS...
+                      </p>
+                    </div>
+                  ) : packs.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="font-retro text-xs text-retro-muted">
+                        No packs available. Try Quick Play instead.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {packs.map((pack) => {
+                        const isSelected = selectedPackId === pack.id;
+                        return (
+                          <RetroCard
+                            key={pack.id}
+                            glow={isSelected ? "green" : "none"}
+                            hoverable
+                            padding="md"
+                            className={cn(
+                              "cursor-pointer",
+                              isSelected && "ring-1 ring-retro-green/50"
                             )}
-                          </div>
-                        </RetroCard>
-                      );
-                    })}
-                  </div>
+                          >
+                            <div
+                              onClick={() => setSelectedPackId(isSelected ? null : pack.id)}
+                              className="text-center space-y-2"
+                            >
+                              <span className="text-4xl">{packIcon(pack.icon)}</span>
+                              <h3
+                                className={cn(
+                                  "font-retro text-[10px] uppercase",
+                                  isSelected
+                                    ? "text-retro-green"
+                                    : "text-retro-text"
+                                )}
+                              >
+                                {pack.name}
+                              </h3>
+                              <p className="font-body text-xs text-retro-muted">
+                                {pack.description}
+                              </p>
+                              <span className="inline-block font-retro text-[8px] px-2 py-0.5 bg-elevated border border-retro-muted/20 text-retro-muted">
+                                {pack.challengeCount} CHALLENGES
+                              </span>
+                              {isSelected && (
+                                <div className="font-retro text-[9px] text-retro-green">
+                                  SELECTED {"\u2713"}
+                                </div>
+                              )}
+                            </div>
+                          </RetroCard>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -419,6 +482,7 @@ export default function CreateEventPage() {
                       onToggleSelect={handleToggleChallenge}
                       selectable
                       filters
+                      eventLocation={location !== "anywhere" ? location : undefined}
                     />
                   )}
                 </div>
@@ -468,6 +532,7 @@ export default function CreateEventPage() {
                         onToggleSelect={handleToggleChallenge}
                         selectable
                         filters
+                        eventLocation={location !== "anywhere" ? location : undefined}
                       />
                     )}
                   </div>
@@ -525,7 +590,7 @@ export default function CreateEventPage() {
                         teamMode ? "text-retro-green" : "text-retro-muted"
                       )}
                     >
-                      {teamMode ? "ON" : "OFF"}
+                      {teamMode ? `ON (${teamCount} teams)` : "OFF"}
                     </span>
                   </div>
                   <div className="h-px bg-retro-purple/10" />

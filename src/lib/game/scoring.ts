@@ -1,4 +1,4 @@
-import type { ScoreBreakdown } from "@/types/game";
+import type { ScoreBreakdown, TeamLeaderboardEntry } from "@/types/game";
 
 interface ScoringInput {
   completed: boolean;
@@ -65,6 +65,41 @@ export function calculateLeaderboard(
       teamName: participantMap[participantId]?.teamName || null,
       rank: 0,
       previousRank: previousRanks?.[participantId] ?? null,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  entries.forEach((entry, index) => {
+    entry.rank = index + 1;
+  });
+
+  return entries;
+}
+
+export function calculateTeamLeaderboard(
+  individualScores: Record<string, number>,
+  participantTeams: Record<string, { teamId: string; name: string; color: string }>
+): TeamLeaderboardEntry[] {
+  const teamAgg: Record<string, { name: string; color: string; score: number; memberCount: number }> = {};
+
+  for (const [participantId, score] of Object.entries(individualScores)) {
+    const team = participantTeams[participantId];
+    if (!team) continue;
+
+    if (!teamAgg[team.teamId]) {
+      teamAgg[team.teamId] = { name: team.name, color: team.color, score: 0, memberCount: 0 };
+    }
+    teamAgg[team.teamId].score += score;
+    teamAgg[team.teamId].memberCount += 1;
+  }
+
+  const entries: TeamLeaderboardEntry[] = Object.entries(teamAgg)
+    .map(([teamId, data]) => ({
+      teamId,
+      name: data.name,
+      color: data.color,
+      score: data.score,
+      rank: 0,
+      memberCount: data.memberCount,
     }))
     .sort((a, b) => b.score - a.score);
 

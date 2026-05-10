@@ -3,28 +3,38 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { DrawingCanvas } from "@/components/game/DrawingCanvas";
+import { TapFrenzy } from "@/components/game/TapFrenzy";
+import { ReactionTime } from "@/components/game/ReactionTime";
+import { PhotoSelfie } from "@/components/game/PhotoSelfie";
+import { ShakeMeter } from "@/components/game/ShakeMeter";
+import { MemorySequence } from "@/components/game/MemorySequence";
+import { TiltTarget } from "@/components/game/TiltTarget";
+import { SoundEffect } from "@/components/game/SoundEffect";
+import { EmojiSlider } from "@/components/game/EmojiSlider";
+import { GroupPhoto } from "@/components/game/GroupPhoto";
+import { GroupTimer } from "@/components/game/GroupTimer";
 import type { SubmissionType } from "@/types/game";
+import type { InteractiveData } from "@/types/challenge";
+import { PIXEL_AVATAR_COLORS } from "./PixelAvatar";
 
 interface SubmissionPanelProps {
   submissionType: SubmissionType;
   onSubmit: (value: string) => void;
   disabled?: boolean;
   participants?: { id: string; nickname: string; avatarIndex: number }[];
+  interactiveData?: InteractiveData | null;
   className?: string;
 }
 
-const AVATAR_COLORS = [
-  "#FF2D78", "#00D4FF", "#39FF14", "#FFD700", "#A855F7", "#FF6B35",
-  "#00FF88", "#FF1493", "#4169E1", "#FF4500", "#00CED1", "#FF69B4",
-  "#7B68EE", "#32CD32", "#FF8C00", "#1E90FF", "#DC143C", "#00FA9A",
-  "#FF1744", "#00E5FF", "#76FF03", "#FFEA00", "#AA00FF", "#FF3D00",
-];
+const AVATAR_COLORS = PIXEL_AVATAR_COLORS;
 
 export function SubmissionPanel({
   submissionType,
   onSubmit,
   disabled = false,
   participants = [],
+  interactiveData,
   className,
 }: SubmissionPanelProps) {
   const [submitted, setSubmitted] = useState(false);
@@ -94,40 +104,105 @@ export function SubmissionPanel({
         <div className="h-[2px] w-12 bg-retro-purple" />
       </div>
 
-      {/* Completion Tap */}
-      {submissionType === "completion_tap" && (
-        <CompletionTap onSubmit={() => handleSubmit("completed")} isLocked={isLocked} />
-      )}
-
-      {/* Text Submission */}
-      {submissionType === "text" && (
-        <TextSubmission
-          value={textValue}
-          onChange={setTextValue}
-          onSubmit={() => handleSubmit(textValue)}
+      {/* Interactive submission types */}
+      {interactiveData?.type === "this_or_that" ? (
+        <ThisOrThatSubmission
+          choices={interactiveData.choices}
+          onSubmit={handleSubmit}
           isLocked={isLocked}
         />
-      )}
-
-      {/* Vote */}
-      {submissionType === "vote" && (
-        <VoteSubmission
-          participants={participants}
-          selectedVote={selectedVote}
-          onSelect={setSelectedVote}
-          onSubmit={() => selectedVote && handleSubmit(selectedVote)}
-          isLocked={isLocked}
+      ) : interactiveData?.type === "drawing" ? (
+        <DrawingCanvas onSubmit={handleSubmit} disabled={isLocked} />
+      ) : interactiveData?.type === "tap_frenzy" ? (
+        <TapFrenzy
+          durationSeconds={interactiveData.durationSeconds}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
         />
-      )}
+      ) : interactiveData?.type === "reaction_time" ? (
+        <ReactionTime
+          rounds={interactiveData.rounds}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : interactiveData?.type === "photo_selfie" ? (
+        <PhotoSelfie onSubmit={handleSubmit} disabled={isLocked} />
+      ) : interactiveData?.type === "shake_meter" ? (
+        <ShakeMeter
+          durationSeconds={interactiveData.durationSeconds}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : interactiveData?.type === "memory_sequence" ? (
+        <MemorySequence
+          sequenceLength={interactiveData.sequenceLength}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : interactiveData?.type === "tilt_target" ? (
+        <TiltTarget
+          rounds={interactiveData.rounds}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : interactiveData?.type === "sound_effect" ? (
+        <SoundEffect
+          durationSeconds={interactiveData.durationSeconds}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : interactiveData?.type === "emoji_slider" ? (
+        <EmojiSlider
+          items={interactiveData.items}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : interactiveData?.type === "group_photo" ? (
+        <GroupPhoto onSubmit={handleSubmit} disabled={isLocked} />
+      ) : interactiveData?.type === "group_timer" ? (
+        <GroupTimer
+          activity={interactiveData.activity}
+          onSubmit={handleSubmit}
+          disabled={isLocked}
+        />
+      ) : (
+        <>
+          {/* Completion Tap */}
+          {submissionType === "completion_tap" && (
+            <CompletionTap onSubmit={() => handleSubmit("completed")} isLocked={isLocked} />
+          )}
 
-      {/* Judge */}
-      {submissionType === "judge" && (
-        <JudgeSubmission isLocked={isLocked} />
-      )}
+          {/* Text Submission */}
+          {submissionType === "text" && (
+            <TextSubmission
+              value={textValue}
+              onChange={setTextValue}
+              onSubmit={() => handleSubmit(textValue)}
+              isLocked={isLocked}
+            />
+          )}
 
-      {/* Photo / Hybrid fallback to completion */}
-      {(submissionType === "photo" || submissionType === "hybrid") && (
-        <CompletionTap onSubmit={() => handleSubmit("completed")} isLocked={isLocked} />
+          {/* Vote */}
+          {submissionType === "vote" && (
+            <VoteSubmission
+              participants={participants}
+              selectedVote={selectedVote}
+              onSelect={setSelectedVote}
+              onSubmit={() => selectedVote && handleSubmit(selectedVote)}
+              isLocked={isLocked}
+            />
+          )}
+
+          {/* Judge */}
+          {submissionType === "judge" && (
+            <JudgeSubmission isLocked={isLocked} />
+          )}
+
+          {/* Photo / Hybrid fallback to completion */}
+          {(submissionType === "photo" || submissionType === "hybrid") && (
+            <CompletionTap onSubmit={() => handleSubmit("completed")} isLocked={isLocked} />
+          )}
+        </>
       )}
     </motion.div>
   );
@@ -343,6 +418,87 @@ function JudgeSubmission({ isLocked }: { isLocked: boolean }) {
           ? "Score has been submitted by the judge."
           : "The host will judge and score this challenge. Give it your best!"}
       </p>
+    </div>
+  );
+}
+
+function ThisOrThatSubmission({
+  choices,
+  onSubmit,
+  isLocked,
+}: {
+  choices: { a: string; b: string }[];
+  onSubmit: (value: string) => void;
+  isLocked: boolean;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<string[]>([]);
+  const [startTime] = useState(Date.now());
+
+  const handlePick = useCallback(
+    (pick: string) => {
+      if (isLocked) return;
+      const next = [...answers, pick];
+      setAnswers(next);
+
+      if (currentIndex + 1 >= choices.length) {
+        const elapsed = Math.round((Date.now() - startTime) / 1000);
+        onSubmit(JSON.stringify({ choices: next, elapsedSeconds: elapsed }));
+      } else {
+        setCurrentIndex(currentIndex + 1);
+      }
+    },
+    [isLocked, answers, currentIndex, choices.length, startTime, onSubmit]
+  );
+
+  if (currentIndex >= choices.length) return null;
+
+  const pair = choices[currentIndex];
+  const progress = ((currentIndex) / choices.length) * 100;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Progress bar */}
+      <div className="h-2 bg-page/60 w-full border border-retro-purple/20">
+        <motion.div
+          className="h-full bg-retro-pink"
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.3 }}
+        />
+      </div>
+
+      <p className="font-retro text-[9px] text-retro-muted text-center uppercase tracking-wider">
+        {currentIndex + 1} / {choices.length}
+      </p>
+
+      <div className="flex gap-3">
+        <motion.button
+          whileTap={!isLocked ? { scale: 0.92 } : undefined}
+          onClick={() => handlePick(pair.a)}
+          disabled={isLocked}
+          className={cn(
+            "flex-1 py-6 font-retro text-xs uppercase tracking-wider transition-all",
+            "bg-retro-blue text-white shadow-[0_4px_0_#1a4a8a]",
+            "active:translate-y-[2px] active:shadow-[0_0_0_#1a4a8a]",
+            "disabled:opacity-40 disabled:cursor-not-allowed"
+          )}
+        >
+          {pair.a}
+        </motion.button>
+        <motion.button
+          whileTap={!isLocked ? { scale: 0.92 } : undefined}
+          onClick={() => handlePick(pair.b)}
+          disabled={isLocked}
+          className={cn(
+            "flex-1 py-6 font-retro text-xs uppercase tracking-wider transition-all",
+            "bg-retro-pink text-white shadow-[0_4px_0_#8a1a3a]",
+            "active:translate-y-[2px] active:shadow-[0_0_0_#8a1a3a]",
+            "disabled:opacity-40 disabled:cursor-not-allowed"
+          )}
+        >
+          {pair.b}
+        </motion.button>
+      </div>
     </div>
   );
 }

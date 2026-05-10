@@ -11,7 +11,7 @@ import {
 } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { pusherServer } from "@/lib/pusher/server";
-import { calculateScore, calculateLeaderboard } from "@/lib/game/scoring";
+import { calculateScore, calculateLeaderboard, calculateTeamLeaderboard } from "@/lib/game/scoring";
 import { auth } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
     // Fetch updated participants for leaderboard calculation
     const updatedParticipants = await db.query.participants.findMany({
       where: eq(participants.eventId, eventId),
+      with: { team: true },
     });
 
     // Build maps for the leaderboard utility
@@ -130,17 +131,26 @@ export async function POST(req: NextRequest) {
       string,
       { nickname: string; avatarIndex: number; teamName: string | null }
     > = {};
+    const participantTeams: Record<string, { teamId: string; name: string; color: string }> = {};
 
     for (const p of updatedParticipants) {
       scoresMap[p.id] = p.score ?? 0;
       participantMap[p.id] = {
         nickname: p.nickname,
         avatarIndex: p.avatarIndex ?? 0,
-        teamName: null,
+        teamName: p.team?.name || null,
       };
+      if (p.team) {
+        participantTeams[p.id] = { teamId: p.team.id, name: p.team.name, color: p.team.color || "#888" };
+      }
     }
 
     const leaderboard = calculateLeaderboard(scoresMap, null, participantMap);
+
+    // Calculate team leaderboard if team mode
+    const teamLeaderboard = event.teamMode
+      ? calculateTeamLeaderboard(scoresMap, participantTeams)
+      : [];
 
     // Persist leaderboard snapshots for this round
     for (const entry of leaderboard) {
@@ -169,6 +179,7 @@ export async function POST(req: NextRequest) {
       {
         scores: scoresMap,
         leaderboard,
+        teamLeaderboard,
         roundScores: Object.fromEntries(
           scoreResults.map((r) => [r.participantId, r.breakdown])
         ),
@@ -182,7 +193,7 @@ export async function POST(req: NextRequest) {
       totalRounds: event.totalRounds || 0,
     });
 
-    return NextResponse.json({ leaderboard, roundScores: scoreResults });
+    return NextResponse.json({ leaderboard, teamLeaderboard, roundScores: scoreResults });
   } catch (error) {
     console.error("Score error:", error);
     return NextResponse.json(

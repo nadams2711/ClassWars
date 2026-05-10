@@ -82,8 +82,8 @@ export function EventWizard({
       {/* Content area */}
       <div className="flex-1">{children}</div>
 
-      {/* Footer navigation */}
-      <div className="flex items-center justify-between pt-8 pb-4 border-t border-retro-purple/20 mt-8">
+      {/* Footer navigation — sticky so it's always reachable */}
+      <div className="sticky bottom-0 z-30 flex items-center justify-between pt-4 pb-4 border-t border-retro-purple/20 mt-8 bg-page/95 backdrop-blur-sm">
         <div>
           {currentStep > 1 && (
             <RetroButton

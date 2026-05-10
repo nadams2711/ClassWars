@@ -95,6 +95,17 @@ export default function HostDashboard() {
     }
   };
 
+  const handleDelete = async (eventId: string) => {
+    if (!confirm("Delete this game? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/events/${eventId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      setEvents((prev) => prev.filter((e) => e.id !== eventId));
+    } catch {
+      setError("Failed to delete game");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-page relative">
       {/* Sign out button */}
@@ -223,7 +234,7 @@ export default function HostDashboard() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       {event.totalRounds > 0 && (
                         <span className="font-retro text-[9px] text-retro-muted">
                           {event.currentRound}/{event.totalRounds} RDS
@@ -234,6 +245,16 @@ export default function HostDashboard() {
                           RESUME &gt;
                         </span>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(event.id);
+                        }}
+                        className="font-retro text-[8px] text-retro-muted/40 hover:text-retro-pink transition-colors px-1.5 py-1"
+                        title="Delete game"
+                      >
+                        DEL
+                      </button>
                     </div>
                   </div>
                 </RetroCard>

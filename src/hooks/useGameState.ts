@@ -43,6 +43,7 @@ export function useGameState(eventId: string | null, isHost = false) {
     onGameEnded: (data: any) => {
       store.setPhase("FINAL_RESULTS");
       store.setLeaderboard(data.finalResults || []);
+      store.setTeamLeaderboard(data.teamLeaderboard || []);
       play("game_over");
     },
   } : null;

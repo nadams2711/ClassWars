@@ -6,7 +6,7 @@ import { pusherServer } from "@/lib/pusher/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { participantId, eventChallengeId, submissionType, textContent } =
+    const { participantId, eventChallengeId, submissionType, textContent, mediaUrl } =
       await req.json();
 
     if (!participantId || !eventChallengeId) {
@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
         participantId,
         submissionType: submissionType || "completion_tap",
         textContent: textContent || null,
+        mediaUrl: mediaUrl || null,
         completedAt: new Date(),
       })
       .returning();

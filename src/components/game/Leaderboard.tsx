@@ -4,21 +4,18 @@ import { motion } from "framer-motion";
 import { useEffect, useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { getOrdinal } from "@/lib/utils";
-import type { LeaderboardEntry } from "@/types/game";
+import { PIXEL_AVATAR_COLORS } from "./PixelAvatar";
+import type { LeaderboardEntry, TeamLeaderboardEntry } from "@/types/game";
 
 interface LeaderboardProps {
   entries: LeaderboardEntry[];
   myParticipantId?: string;
   compact?: boolean;
   className?: string;
+  teamLeaderboard?: TeamLeaderboardEntry[];
 }
 
-const AVATAR_COLORS = [
-  "#FF2D78", "#00D4FF", "#39FF14", "#FFD700", "#A855F7", "#FF6B35",
-  "#00FF88", "#FF1493", "#4169E1", "#FF4500", "#00CED1", "#FF69B4",
-  "#7B68EE", "#32CD32", "#FF8C00", "#1E90FF", "#DC143C", "#00FA9A",
-  "#FF1744", "#00E5FF", "#76FF03", "#FFEA00", "#AA00FF", "#FF3D00",
-];
+const AVATAR_COLORS = PIXEL_AVATAR_COLORS;
 
 const RANK_STYLES: Record<number, { badge: string; border: string; glow: string; label: string }> = {
   1: {
@@ -99,8 +96,10 @@ export function Leaderboard({
   myParticipantId,
   compact = false,
   className,
+  teamLeaderboard,
 }: LeaderboardProps) {
   const sorted = [...entries].sort((a, b) => a.rank - b.rank);
+  const maxTeamScore = teamLeaderboard?.length ? Math.max(...teamLeaderboard.map(t => t.score), 1) : 1;
 
   return (
     <motion.div
@@ -112,6 +111,57 @@ export function Leaderboard({
         className
       )}
     >
+      {/* Team Standings */}
+      {teamLeaderboard && teamLeaderboard.length > 0 && (
+        <div className="px-5 py-4 border-b border-retro-purple/20">
+          <h4
+            className="font-retro text-[10px] text-retro-gold uppercase tracking-wider mb-3"
+            style={{ textShadow: "0 0 8px rgba(255,215,0,0.3)" }}
+          >
+            Team Standings
+          </h4>
+          <div className="space-y-2">
+            {teamLeaderboard
+              .sort((a, b) => a.rank - b.rank)
+              .map((team, i) => (
+                <motion.div
+                  key={team.teamId}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.08, duration: 0.3 }}
+                  className="flex items-center gap-3"
+                >
+                  <span className="font-retro text-[10px] text-retro-muted w-5 shrink-0">
+                    #{team.rank}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span
+                        className="font-retro text-[10px] uppercase"
+                        style={{ color: team.color }}
+                      >
+                        {team.name}
+                      </span>
+                      <span className="font-retro text-[10px] text-retro-text tabular-nums">
+                        {team.score} pts
+                      </span>
+                    </div>
+                    <div className="h-2 bg-page/60 overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(team.score / maxTeamScore) * 100}%` }}
+                        transition={{ delay: i * 0.08 + 0.2, duration: 0.5, ease: "easeOut" }}
+                        className="h-full"
+                        style={{ backgroundColor: team.color }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       {!compact && (
         <div className="bg-elevated/80 px-5 py-3 border-b border-retro-purple/20 flex items-center justify-between">

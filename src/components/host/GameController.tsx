@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils";
 import { formatTimer } from "@/lib/utils";
 import { RetroButton } from "@/components/ui/RetroButton";
 import { RetroCard } from "@/components/ui/RetroCard";
-import { JudgeScoring } from "./JudgeScoring";
 import { useCountdown } from "@/hooks/useCountdown";
 import type { GamePhase, Participant } from "@/types/game";
 
@@ -79,6 +78,126 @@ const phaseConfig: Record<
   },
 };
 
+// ─── Inline Winner Picker ─────────────────────────
+const PLACE_LABELS = ["1ST", "2ND", "3RD"] as const;
+const PLACE_COLORS = [
+  { border: "border-retro-gold", text: "text-retro-gold", bg: "bg-retro-gold/20", glow: "shadow-[0_0_10px_rgba(255,215,0,0.4)]" },
+  { border: "border-retro-blue", text: "text-retro-blue", bg: "bg-retro-blue/20", glow: "shadow-[0_0_10px_rgba(0,212,255,0.3)]" },
+  { border: "border-retro-green", text: "text-retro-green", bg: "bg-retro-green/20", glow: "shadow-[0_0_10px_rgba(57,255,20,0.3)]" },
+];
+
+function WinnerPicker({
+  participants,
+  actionLoading,
+  onConfirm,
+}: {
+  participants: Participant[];
+  actionLoading: string | null;
+  onConfirm: (first: string, second: string, third: string) => void;
+}) {
+  const [picks, setPicks] = useState<string[]>([]);
+
+  const handleTap = (id: string) => {
+    setPicks((prev) => {
+      // If already picked, remove it and everything after it
+      const idx = prev.indexOf(id);
+      if (idx !== -1) return prev.slice(0, idx);
+      // Add if we haven't picked 3 yet
+      if (prev.length >= 3) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const placeOf = (id: string) => picks.indexOf(id);
+
+  return (
+    <div className="space-y-4">
+      <h3 className="font-retro text-xs text-retro-gold uppercase tracking-widest text-center">
+        TAP TO ASSIGN PLACES
+      </h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {participants.map((p) => {
+          const place = placeOf(p.id);
+          const isSelected = place !== -1;
+          const colors = isSelected ? PLACE_COLORS[place] : null;
+          return (
+            <button
+              key={p.id}
+              onClick={() => handleTap(p.id)}
+              className={cn(
+                "relative flex items-center gap-2 px-3 py-3 border-2 transition-all duration-150 cursor-pointer text-left",
+                isSelected
+                  ? `${colors!.border} ${colors!.bg} ${colors!.glow}`
+                  : "border-retro-purple/20 bg-elevated hover:border-retro-purple/40"
+              )}
+            >
+              {isSelected && (
+                <span
+                  className={cn(
+                    "font-retro text-[10px] px-1.5 py-0.5 border",
+                    colors!.border,
+                    colors!.text
+                  )}
+                >
+                  {PLACE_LABELS[place]}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "font-retro text-[10px] truncate",
+                  isSelected ? colors!.text : "text-retro-text"
+                )}
+              >
+                {p.nickname}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected summary */}
+      {picks.length > 0 && (
+        <div className="flex justify-center gap-4">
+          {picks.map((id, i) => {
+            const p = participants.find((x) => x.id === id);
+            return (
+              <div key={id} className="text-center">
+                <span className={cn("font-retro text-[9px]", PLACE_COLORS[i].text)}>
+                  {PLACE_LABELS[i]}
+                </span>
+                <p className="font-retro text-[10px] text-retro-text truncate max-w-[80px]">
+                  {p?.nickname}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="flex justify-center gap-3">
+        <RetroButton
+          variant="gold"
+          size="lg"
+          onClick={() => onConfirm(picks[0], picks[1], picks[2])}
+          disabled={picks.length < 3 || actionLoading === "pick_winners"}
+        >
+          {actionLoading === "pick_winners" ? "CONFIRMING..." : "CONFIRM WINNERS"}
+        </RetroButton>
+        {picks.length > 0 && (
+          <RetroButton
+            variant="secondary"
+            size="md"
+            onClick={() => setPicks([])}
+            disabled={!!actionLoading}
+          >
+            RESET
+          </RetroButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
 async function apiAction(eventId: string, action: string, body?: Record<string, unknown>) {
   const res = await fetch(`/api/events/${eventId}/action`, {
     method: "POST",
@@ -122,10 +241,6 @@ export function GameController({ eventId, gameState }: GameControllerProps) {
     } finally {
       setActionLoading(null);
     }
-  };
-
-  const handleJudgeScores = async (scores: Record<string, number>) => {
-    await handleAction("submit_judge_scores", { scores });
   };
 
   const phaseInfo = phaseConfig[phase] || phaseConfig.LOBBY;
@@ -256,21 +371,35 @@ export function GameController({ eventId, gameState }: GameControllerProps) {
 
         {/* SUBMISSIONS_CLOSED phase */}
         {phase === "SUBMISSIONS_CLOSED" && (
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-3">
             <RetroButton
               variant="gold"
               size="lg"
               onClick={() => handleAction("reveal_scores")}
-              disabled={actionLoading === "reveal_scores"}
+              disabled={!!actionLoading}
             >
               {actionLoading === "reveal_scores" ? "REVEALING..." : "REVEAL SCORES"}
+            </RetroButton>
+            <RetroButton
+              variant="primary"
+              size="lg"
+              onClick={() => handleAction("enter_judging")}
+              disabled={!!actionLoading}
+            >
+              {actionLoading === "enter_judging" ? "..." : "PICK WINNERS"}
             </RetroButton>
           </div>
         )}
 
-        {/* JUDGING phase */}
+        {/* JUDGING phase — inline Winner Picker */}
         {phase === "JUDGING" && (
-          <JudgeScoring submissions={[]} onScoreSubmit={handleJudgeScores} />
+          <WinnerPicker
+            participants={participants}
+            actionLoading={actionLoading}
+            onConfirm={(first, second, third) =>
+              handleAction("pick_winners", { first, second, third })
+            }
+          />
         )}
 
         {/* SCORE_REVEAL phase */}
@@ -295,28 +424,92 @@ export function GameController({ eventId, gameState }: GameControllerProps) {
                 {actionLoading === "end_game" ? "..." : "END GAME"}
               </RetroButton>
             )}
-            <RetroButton
-              variant="secondary"
-              size="md"
-              onClick={() => handleAction("show_vs")}
-              disabled={actionLoading === "show_vs"}
-            >
-              SHOW VS
-            </RetroButton>
           </div>
         )}
 
         {/* FINAL_RESULTS / PODIUM phase */}
         {(phase === "FINAL_RESULTS" || phase === "PODIUM") && (
-          <div className="flex justify-center">
-            <RetroButton
-              variant="danger"
-              size="md"
-              onClick={() => handleAction("end_game")}
-              disabled={actionLoading === "end_game"}
+          <div className="space-y-4">
+            <h3
+              className="font-retro text-sm text-retro-gold uppercase tracking-widest text-center"
+              style={{ textShadow: "0 0 12px rgba(255,215,0,0.5)" }}
             >
-              {actionLoading === "end_game" ? "..." : "END EVENT"}
-            </RetroButton>
+              GAME OVER
+            </h3>
+
+            {/* Podium - top 3 */}
+            {gameState.leaderboard.length > 0 && (
+              <div className="space-y-2">
+                {gameState.leaderboard
+                  .sort((a, b) => a.rank - b.rank)
+                  .slice(0, 3)
+                  .map((entry) => {
+                    const placeLabel = entry.rank === 1 ? "1ST" : entry.rank === 2 ? "2ND" : "3RD";
+                    const placeColor =
+                      entry.rank === 1
+                        ? "text-retro-gold border-retro-gold/40 bg-retro-gold/10"
+                        : entry.rank === 2
+                          ? "text-retro-blue border-retro-blue/40 bg-retro-blue/10"
+                          : "text-retro-green border-retro-green/40 bg-retro-green/10";
+                    return (
+                      <div
+                        key={entry.participantId}
+                        className={cn(
+                          "flex items-center gap-3 px-4 py-3 border",
+                          placeColor
+                        )}
+                      >
+                        <span className="font-retro text-xs w-8">{placeLabel}</span>
+                        <span className="font-retro text-[10px] flex-1 truncate text-retro-text">
+                          {entry.nickname}
+                        </span>
+                        <span className="font-retro text-xs tabular-nums">{entry.score} pts</span>
+                      </div>
+                    );
+                  })}
+
+                {/* Remaining players */}
+                {gameState.leaderboard.length > 3 && (
+                  <div className="space-y-1 pt-1">
+                    {gameState.leaderboard
+                      .sort((a, b) => a.rank - b.rank)
+                      .slice(3)
+                      .map((entry) => (
+                        <div
+                          key={entry.participantId}
+                          className="flex items-center gap-3 px-4 py-1.5 text-retro-muted"
+                        >
+                          <span className="font-retro text-[9px] w-8">#{entry.rank}</span>
+                          <span className="font-retro text-[9px] flex-1 truncate">
+                            {entry.nickname}
+                          </span>
+                          <span className="font-retro text-[9px] tabular-nums">{entry.score}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* No scores yet */}
+            {gameState.leaderboard.length === 0 && (
+              <div className="text-center py-4">
+                <p className="font-retro text-[10px] text-retro-muted">
+                  No scores recorded
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-center pt-2">
+              <RetroButton
+                variant="secondary"
+                size="md"
+                onClick={() => handleAction("end_game")}
+                disabled={actionLoading === "end_game"}
+              >
+                {actionLoading === "end_game" ? "..." : "BACK TO LOBBY"}
+              </RetroButton>
+            </div>
           </div>
         )}
       </div>

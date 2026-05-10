@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { PixelAvatar, getSpriteName, getAvatarColor, PIXEL_AVATAR_COLORS } from "./PixelAvatar";
 
 interface AvatarPickerProps {
   selectedIndex: number;
@@ -10,23 +11,17 @@ interface AvatarPickerProps {
   className?: string;
 }
 
-const AVATAR_COLORS = [
-  "#FF2D78", "#00D4FF", "#39FF14", "#FFD700", "#A855F7", "#FF6B35",
-  "#00FF88", "#FF1493", "#4169E1", "#FF4500", "#00CED1", "#FF69B4",
-  "#7B68EE", "#32CD32", "#FF8C00", "#1E90FF", "#DC143C", "#00FA9A",
-  "#FF1744", "#00E5FF", "#76FF03", "#FFEA00", "#AA00FF", "#FF3D00",
-];
-
+// Re-export for backwards compat with lobby page and other consumers
+const AVATAR_COLORS = PIXEL_AVATAR_COLORS;
 export { AVATAR_COLORS };
 
 export function AvatarPicker({
   selectedIndex,
   onSelect,
-  nickname = "",
   className,
 }: AvatarPickerProps) {
-  const initial = nickname ? nickname.charAt(0).toUpperCase() : "?";
-  const selectedColor = AVATAR_COLORS[selectedIndex % AVATAR_COLORS.length];
+  const selectedColor = getAvatarColor(selectedIndex);
+  const selectedName = getSpriteName(selectedIndex);
 
   return (
     <motion.div
@@ -42,16 +37,14 @@ export function AvatarPicker({
           initial={{ scale: 0.8 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 300, damping: 15 }}
-          className="w-20 h-20 flex items-center justify-center relative"
+          className="p-3 relative"
           style={{
-            backgroundColor: selectedColor,
-            boxShadow: `0 0 24px ${selectedColor}60, 0 0 48px ${selectedColor}20`,
-            imageRendering: "pixelated",
+            backgroundColor: `${selectedColor}15`,
+            border: `2px solid ${selectedColor}`,
+            boxShadow: `0 0 24px ${selectedColor}40, 0 0 48px ${selectedColor}15`,
           }}
         >
-          <span className="font-retro text-2xl text-white drop-shadow-lg">
-            {initial}
-          </span>
+          <PixelAvatar avatarIndex={selectedIndex} size="xl" />
           {/* Pixel corner accents */}
           <div
             className="absolute -top-1 -left-1 w-2 h-2"
@@ -70,12 +63,15 @@ export function AvatarPicker({
             style={{ backgroundColor: selectedColor }}
           />
         </motion.div>
+        <span className="font-retro text-[10px] uppercase tracking-wider" style={{ color: selectedColor }}>
+          {selectedName}
+        </span>
         <span className="font-retro text-[9px] text-retro-muted uppercase tracking-wider">
-          Choose your color
+          Choose your character
         </span>
       </div>
 
-      {/* 6x4 color grid */}
+      {/* 6x4 character grid */}
       <div className="grid grid-cols-6 gap-2">
         {AVATAR_COLORS.map((color, index) => {
           const isSelected = index === selectedIndex;
@@ -84,31 +80,22 @@ export function AvatarPicker({
               key={index}
               type="button"
               whileTap={{ scale: 0.85 }}
-              whileHover={{ scale: 1.1 }}
+              whileHover={{ scale: 1.15 }}
               onClick={() => onSelect(index)}
               className={cn(
-                "w-10 h-10 md:w-11 md:h-11 flex items-center justify-center transition-all duration-150 relative",
+                "flex items-center justify-center p-1 transition-all duration-150 relative",
                 "focus:outline-none focus-visible:ring-2 focus-visible:ring-retro-purple-light"
               )}
               style={{
-                backgroundColor: color,
+                backgroundColor: isSelected ? `${color}20` : "transparent",
+                border: isSelected ? `2px solid ${color}` : "2px solid transparent",
                 boxShadow: isSelected
-                  ? `0 0 0 3px #0A0A1A, 0 0 0 5px ${color}, 0 0 20px ${color}60`
+                  ? `0 0 0 2px #0A0A1A, 0 0 0 4px ${color}, 0 0 16px ${color}50`
                   : undefined,
-                imageRendering: "pixelated",
               }}
-              aria-label={`Avatar color ${index + 1}`}
+              aria-label={`${getSpriteName(index)} character`}
             >
-              {/* Letter overlay */}
-              <span
-                className={cn(
-                  "font-retro text-xs text-white transition-opacity duration-150",
-                  isSelected ? "opacity-100" : "opacity-0"
-                )}
-                style={{ textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
-              >
-                {initial}
-              </span>
+              <PixelAvatar avatarIndex={index} size="md" />
 
               {/* Selected indicator */}
               {isSelected && (

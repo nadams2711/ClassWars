@@ -8,7 +8,7 @@ export function AnimatedTitle() {
       <h1
         className="font-retro text-4xl sm:text-5xl md:text-7xl text-retro-gold tracking-wider animate-title-glow select-none"
       >
-        CLASSWARS
+        BORED GAMES
       </h1>
 
       <motion.p

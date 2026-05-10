@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { events, eventChallenges, packChallenges } from "@/db/schema";
+import { events, eventChallenges, packChallenges, challengePacks, teams } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { generateJoinCode } from "@/lib/utils";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -31,9 +33,11 @@ export async function POST(req: NextRequest) {
     mode,
     audience,
     teamMode,
+    teamCount,
     maxParticipants,
     packId,
     challengeIds,
+    settings,
   } = body;
 
   // Generate unique join code
@@ -52,13 +56,18 @@ export async function POST(req: NextRequest) {
   let totalRounds = 0;
   let packChalls: { challengeId: string; orderIndex: number | null }[] = [];
 
-  if (packId) {
+  if (packId && UUID_RE.test(packId)) {
     packChalls = await db.query.packChallenges.findMany({
       where: eq(packChallenges.packId, packId),
       orderBy: [packChallenges.orderIndex],
     });
     totalRounds = packChalls.length;
-  } else if (challengeIds?.length) {
+  } else if (packId) {
+    // Non-UUID packId (legacy placeholder) — skip pack challenges
+    totalRounds = 0;
+  }
+
+  if (!packId && challengeIds?.length) {
     totalRounds = challengeIds.length;
   }
 
@@ -66,7 +75,7 @@ export async function POST(req: NextRequest) {
     .insert(events)
     .values({
       hostId: session.user.id,
-      name: name || "ClassWars Game",
+      name: name || "Bored Games Game",
       joinCode,
       status: "lobby",
       mode: mode || "quick_play",
@@ -74,8 +83,27 @@ export async function POST(req: NextRequest) {
       teamMode: teamMode || false,
       maxParticipants: maxParticipants || 50,
       totalRounds,
+      settings: settings || {},
     })
     .returning();
+
+  // Create teams if team mode is enabled
+  if (teamMode) {
+    const TEAM_PRESETS = [
+      { name: "Red", color: "#FF4757" },
+      { name: "Blue", color: "#3742FA" },
+      { name: "Green", color: "#2ED573" },
+      { name: "Gold", color: "#FFC312" },
+    ];
+    const count = Math.min(Math.max(teamCount || 2, 2), 4);
+    await db.insert(teams).values(
+      TEAM_PRESETS.slice(0, count).map((t) => ({
+        eventId: event.id,
+        name: t.name,
+        color: t.color,
+      }))
+    );
+  }
 
   // Add challenges to event
   if (packId && packChalls.length > 0) {

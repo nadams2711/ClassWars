@@ -2,7 +2,9 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { PixelAvatar } from "@/components/game/PixelAvatar";
 import type { SubmissionType, MovementLevel, NoiseLevel } from "@/types/game";
+import type { InteractiveData } from "@/types/challenge";
 
 interface ChallengeCardProps {
   title: string;
@@ -13,6 +15,7 @@ interface ChallengeCardProps {
   movementLevel: MovementLevel;
   noiseLevel: NoiseLevel;
   category: string;
+  interactiveData?: InteractiveData | null;
   className?: string;
 }
 
@@ -71,6 +74,7 @@ export function ChallengeCard({
   movementLevel,
   noiseLevel,
   category,
+  interactiveData,
   className,
 }: ChallengeCardProps) {
   const submission = SUBMISSION_ICONS[submissionType];
@@ -121,6 +125,11 @@ export function ChallengeCard({
           {shortDescription}
         </p>
 
+        {/* Interactive display */}
+        {interactiveData && (
+          <InteractiveDisplay data={interactiveData} />
+        )}
+
         {/* Full instructions */}
         <div className="bg-page/60 border border-retro-purple/10 p-4 mb-4">
           <p className="font-retro text-[9px] uppercase text-retro-muted tracking-wider mb-2">
@@ -159,4 +168,300 @@ export function ChallengeCard({
       </div>
     </motion.div>
   );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  InteractiveDisplay                                                        */
+/* -------------------------------------------------------------------------- */
+
+function InteractiveDisplay({ data }: { data: InteractiveData }) {
+  switch (data.type) {
+    case "describe_avatar":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.div
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="relative"
+          >
+            <div
+              className="absolute inset-0 blur-xl opacity-40 bg-retro-purple rounded-full"
+              style={{ transform: "scale(1.3)" }}
+            />
+            <PixelAvatar avatarIndex={data.avatarIndex} size="xl" />
+          </motion.div>
+          <p className="font-retro text-[10px] uppercase text-retro-purple-light tracking-wider text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "emoji_prompt":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <div className="flex gap-3">
+            {data.emojis.map((emoji, i) => (
+              <motion.span
+                key={i}
+                className="text-4xl"
+                animate={{ y: [0, -8, 0] }}
+                transition={{
+                  duration: 1.2,
+                  repeat: Infinity,
+                  delay: i * 0.15,
+                  ease: "easeInOut",
+                }}
+              >
+                {emoji}
+              </motion.span>
+            ))}
+          </div>
+          <p className="font-retro text-[10px] uppercase text-retro-gold tracking-wider text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "this_or_that":
+      return (
+        <div className="flex flex-col items-center gap-2 py-4 mb-4">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">&#x26A1;</span>
+            <span className="font-retro text-sm text-retro-pink uppercase">
+              {data.choices.length} RAPID-FIRE CHOICES
+            </span>
+            <span className="text-2xl">&#x26A1;</span>
+          </div>
+          <p className="font-body text-xs text-retro-muted text-center">
+            Choose fast -- speed is scored!
+          </p>
+        </div>
+      );
+
+    case "drawing":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <span className="text-4xl">&#x1F3A8;</span>
+          <p className="font-retro text-xs text-retro-blue uppercase tracking-wider text-center">
+            {data.prompt}
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            Draw your answer on the canvas below!
+          </p>
+        </div>
+      );
+
+    case "tap_frenzy":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ scale: [1, 1.2, 1] }}
+            transition={{ duration: 0.6, repeat: Infinity }}
+          >
+            &#x1F4A5;
+          </motion.span>
+          <p className="font-retro text-sm text-retro-pink uppercase tracking-wider text-center">
+            TAP AS FAST AS YOU CAN!
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "reaction_time":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ rotate: [0, 10, -10, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            &#x1F3AF;
+          </motion.span>
+          <p className="font-retro text-sm text-retro-green uppercase tracking-wider text-center">
+            {data.rounds} REACTION ROUNDS
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "photo_selfie":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.div
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            className="relative"
+          >
+            <div
+              className="absolute inset-0 blur-xl opacity-40 bg-retro-pink rounded-full"
+              style={{ transform: "scale(1.3)" }}
+            />
+            <PixelAvatar avatarIndex={data.avatarIndex} size="xl" />
+          </motion.div>
+          <p className="font-retro text-[10px] uppercase text-retro-pink tracking-wider text-center">
+            {data.prompt}
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            Take a selfie matching this face!
+          </p>
+        </div>
+      );
+
+    case "shake_meter":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ x: [-4, 4, -4, 4, 0], rotate: [-5, 5, -5, 5, 0] }}
+            transition={{ duration: 0.4, repeat: Infinity }}
+          >
+            &#x1F4F1;
+          </motion.span>
+          <p className="font-retro text-sm text-retro-gold uppercase tracking-wider text-center">
+            SHAKE YOUR PHONE!
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "memory_sequence":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <div className="flex gap-2">
+            {["bg-retro-pink", "bg-retro-blue", "bg-retro-green", "bg-retro-gold"].map((c, i) => (
+              <motion.div
+                key={i}
+                className={`w-6 h-6 rounded ${c}`}
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
+              />
+            ))}
+          </div>
+          <p className="font-retro text-sm text-retro-purple-light uppercase tracking-wider text-center">
+            MEMORY CHALLENGE
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "tilt_target":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ rotate: [0, 15, -15, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            &#x1F3AF;
+          </motion.span>
+          <p className="font-retro text-sm text-retro-blue uppercase tracking-wider text-center">
+            {data.rounds} TARGETS TO HIT!
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "sound_effect":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ scale: [1, 1.15, 1] }}
+            transition={{ duration: 0.8, repeat: Infinity }}
+          >
+            &#x1F3A4;
+          </motion.span>
+          <p className="font-retro text-sm text-retro-pink uppercase tracking-wider text-center">
+            SOUND EFFECT TIME!
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "emoji_slider":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <div className="flex gap-2 text-3xl">
+            <span>{data.items[0]?.leftEmoji}</span>
+            <motion.span
+              animate={{ x: [-8, 8, -8] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            >
+              &#x2194;
+            </motion.span>
+            <span>{data.items[0]?.rightEmoji}</span>
+          </div>
+          <p className="font-retro text-sm text-retro-gold uppercase tracking-wider text-center">
+            {data.items.length} THINGS TO RATE!
+          </p>
+          <p className="font-body text-xs text-retro-muted text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "group_photo":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 1.5, repeat: Infinity }}
+          >
+            {data.icon}
+          </motion.span>
+          <div className="flex items-center gap-2">
+            <span className="font-retro text-[8px] px-2 py-0.5 bg-retro-green/20 text-retro-green border border-retro-green/40 uppercase">
+              GROUP
+            </span>
+            <span className="font-retro text-[8px] px-2 py-0.5 bg-retro-pink/20 text-retro-pink border border-retro-pink/40 uppercase">
+              PHOTO PROOF
+            </span>
+          </div>
+          <p className="font-retro text-xs text-retro-green uppercase tracking-wider text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    case "group_timer":
+      return (
+        <div className="flex flex-col items-center gap-3 py-4 mb-4">
+          <motion.span
+            className="text-5xl"
+            animate={{ rotate: [0, 5, -5, 0] }}
+            transition={{ duration: 1, repeat: Infinity }}
+          >
+            {data.icon}
+          </motion.span>
+          <div className="flex items-center gap-2">
+            <span className="font-retro text-[8px] px-2 py-0.5 bg-retro-green/20 text-retro-green border border-retro-green/40 uppercase">
+              GROUP
+            </span>
+            <span className="font-retro text-[8px] px-2 py-0.5 bg-retro-gold/20 text-retro-gold border border-retro-gold/40 uppercase">
+              TIMED
+            </span>
+          </div>
+          <p className="font-retro text-xs text-retro-gold uppercase tracking-wider text-center">
+            {data.prompt}
+          </p>
+        </div>
+      );
+
+    default:
+      return null;
+  }
 }

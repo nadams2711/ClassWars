@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GamePhase, Participant, LeaderboardEntry, VSMatchup, ScoreBreakdown } from "@/types/game";
+import type { GamePhase, Participant, LeaderboardEntry, VSMatchup, ScoreBreakdown, TeamLeaderboardEntry } from "@/types/game";
 
 interface GameStore {
   // State
@@ -14,12 +14,14 @@ interface GameStore {
     fullInstructions: string;
     durationSeconds: number;
     submissionType: string;
+    interactiveData?: unknown;
   } | null;
   timerEnd: string | null;
   participants: Participant[];
   myParticipantId: string | null;
   scores: Record<string, number>;
   leaderboard: LeaderboardEntry[];
+  teamLeaderboard: TeamLeaderboardEntry[];
   lastScoreBreakdown: ScoreBreakdown | null;
   vsMatchup: VSMatchup | null;
   hasSubmitted: boolean;
@@ -38,6 +40,7 @@ interface GameStore {
   setMyParticipantId: (id: string) => void;
   setScores: (scores: Record<string, number>) => void;
   setLeaderboard: (leaderboard: LeaderboardEntry[]) => void;
+  setTeamLeaderboard: (teamLeaderboard: TeamLeaderboardEntry[]) => void;
   setLastScoreBreakdown: (breakdown: ScoreBreakdown | null) => void;
   setVSMatchup: (matchup: VSMatchup | null) => void;
   setHasSubmitted: (submitted: boolean) => void;
@@ -55,6 +58,7 @@ interface GameStore {
   handleScoresUpdate: (data: {
     scores: Record<string, number>;
     leaderboard: LeaderboardEntry[];
+    teamLeaderboard?: TeamLeaderboardEntry[];
   }) => void;
 
   // Reset
@@ -73,6 +77,7 @@ const initialState = {
   myParticipantId: null,
   scores: {},
   leaderboard: [],
+  teamLeaderboard: [],
   lastScoreBreakdown: null,
   vsMatchup: null,
   hasSubmitted: false,
@@ -100,6 +105,7 @@ export const useGameStore = create<GameStore>((set) => ({
   setMyParticipantId: (id) => set({ myParticipantId: id }),
   setScores: (scores) => set({ scores }),
   setLeaderboard: (leaderboard) => set({ leaderboard }),
+  setTeamLeaderboard: (teamLeaderboard) => set({ teamLeaderboard }),
   setLastScoreBreakdown: (breakdown) => set({ lastScoreBreakdown: breakdown }),
   setVSMatchup: (matchup) => set({ vsMatchup: matchup }),
   setHasSubmitted: (submitted) => set({ hasSubmitted: submitted }),
@@ -117,6 +123,7 @@ export const useGameStore = create<GameStore>((set) => ({
   handleScoresUpdate: (data) => set({
     scores: data.scores,
     leaderboard: data.leaderboard,
+    teamLeaderboard: data.teamLeaderboard || [],
   }),
 
   reset: () => set(initialState),

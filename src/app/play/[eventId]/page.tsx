@@ -15,6 +15,7 @@ import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { SubmissionType, MovementLevel, NoiseLevel } from "@/types/game";
+import type { InteractiveData } from "@/types/challenge";
 
 interface StoredParticipant {
   participantId: string;
@@ -49,6 +50,43 @@ export default function PlayPage() {
     } catch {
       // Proceed without stored data
     }
+  }, [eventId]);
+
+  // Fetch initial game state from server (in case Pusher event was missed)
+  useEffect(() => {
+    if (!eventId) return;
+    async function fetchState() {
+      try {
+        const res = await fetch(`/api/events/${eventId}/state`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        // Only update if we're still in LOBBY (haven't received a Pusher event yet)
+        if (game.phase === "LOBBY" && data.phase !== "LOBBY") {
+          game.handleGameStateEvent({
+            phase: data.phase,
+            round: data.currentRound,
+            totalRounds: data.totalRounds,
+            challengeId: data.currentChallengeId || undefined,
+            challenge: data.currentChallenge || undefined,
+            timerEnd: data.timerEnd || undefined,
+          });
+        }
+
+        // Always load participants from server state
+        if (data.participants?.length) {
+          game.setParticipants(data.participants);
+        }
+
+        // Redirect to results if game is over
+        if (data.status === "completed") {
+          router.push(`/play/${eventId}/results`);
+        }
+      } catch {
+        // Non-critical, Pusher will handle live updates
+      }
+    }
+    fetchState();
   }, [eventId]);
 
   // Handle phase transitions
@@ -94,6 +132,8 @@ export default function PlayPage() {
       setChallengePhase("submitted");
       game.setHasSubmitted(true);
 
+      const isDataUrl = value.startsWith("data:image/");
+
       try {
         await fetch("/api/game/submit", {
           method: "POST",
@@ -102,7 +142,8 @@ export default function PlayPage() {
             participantId: stored.participantId,
             eventChallengeId: game.currentChallengeId,
             submissionType: game.currentChallenge?.submissionType || "completion_tap",
-            textContent: value !== "completed" ? value : null,
+            textContent: !isDataUrl && value !== "completed" ? value : null,
+            mediaUrl: isDataUrl ? value : null,
           }),
         });
       } catch {
@@ -220,6 +261,10 @@ export default function PlayPage() {
                 avatarIndex: game.vsMatchup.player2.avatarIndex,
               }}
               challengeTitle={game.vsMatchup.challengeTitle}
+              onComplete={() => {
+                game.setPhase("COUNTDOWN");
+                setShowCountdownOverlay(true);
+              }}
             />
           )}
         </AnimatePresence>
@@ -244,6 +289,7 @@ export default function PlayPage() {
                 movementLevel={"seated" as MovementLevel}
                 noiseLevel={"quiet" as NoiseLevel}
                 category=""
+                interactiveData={challenge.interactiveData as InteractiveData | null | undefined}
               />
 
               {/* Submission Panel or Time's Up */}
@@ -327,10 +373,47 @@ export default function PlayPage() {
                     nickname: p.nickname,
                     avatarIndex: p.avatarIndex,
                   }))}
+                  interactiveData={challenge.interactiveData as InteractiveData | null | undefined}
                 />
               )}
             </motion.div>
           )}
+
+        {/* JUDGING — host is picking winners */}
+        {game.phase === "JUDGING" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="flex-1 flex items-center justify-center"
+          >
+            <RetroCard glow="gold" padding="lg" className="text-center max-w-sm">
+              <h2
+                className="font-retro text-sm text-retro-gold mb-3"
+                style={{ textShadow: "0 0 12px rgba(255,215,0,0.4)" }}
+              >
+                JUDGING
+              </h2>
+              <p className="font-body text-sm text-retro-muted mb-4">
+                Host is choosing winners...
+              </p>
+              <div className="flex justify-center gap-1.5">
+                <div
+                  className="w-2 h-2 bg-retro-gold rounded-full animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <div
+                  className="w-2 h-2 bg-retro-gold rounded-full animate-bounce"
+                  style={{ animationDelay: "200ms" }}
+                />
+                <div
+                  className="w-2 h-2 bg-retro-gold rounded-full animate-bounce"
+                  style={{ animationDelay: "400ms" }}
+                />
+              </div>
+            </RetroCard>
+          </motion.div>
+        )}
 
         {/* SCORE_REVEAL */}
         {game.phase === "SCORE_REVEAL" && (
@@ -400,6 +483,53 @@ export default function PlayPage() {
                   })}
               </div>
             </RetroCard>
+
+            {/* Team Standings */}
+            {game.teamLeaderboard.length > 0 && (
+              <RetroCard glow="purple" padding="none">
+                <div className="bg-elevated/80 px-4 py-2.5 border-b border-retro-purple/20">
+                  <h4 className="font-retro text-[9px] text-retro-gold uppercase tracking-wider">
+                    Team Standings
+                  </h4>
+                </div>
+                <div className="p-4 space-y-2">
+                  {[...game.teamLeaderboard]
+                    .sort((a, b) => a.rank - b.rank)
+                    .map((team) => {
+                      const maxScore = Math.max(...game.teamLeaderboard.map(t => t.score), 1);
+                      return (
+                        <div key={team.teamId} className="flex items-center gap-2">
+                          <span className="font-retro text-[9px] text-retro-muted w-5">
+                            #{team.rank}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span
+                                className="font-retro text-[9px] uppercase"
+                                style={{ color: team.color }}
+                              >
+                                {team.name}
+                              </span>
+                              <span className="font-retro text-[9px] text-retro-text tabular-nums">
+                                {team.score}
+                              </span>
+                            </div>
+                            <div className="h-1.5 bg-page/60 overflow-hidden">
+                              <div
+                                className="h-full transition-all duration-500"
+                                style={{
+                                  backgroundColor: team.color,
+                                  width: `${(team.score / maxScore) * 100}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </RetroCard>
+            )}
 
             {/* Waiting for next round */}
             <div className="text-center py-2">

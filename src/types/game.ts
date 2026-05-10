@@ -64,6 +64,15 @@ export interface VSMatchup {
   roundNumber: number;
 }
 
+export interface TeamLeaderboardEntry {
+  teamId: string;
+  name: string;
+  color: string;
+  score: number;
+  rank: number;
+  memberCount: number;
+}
+
 export interface ScoreBreakdown {
   completion: number;
   speed: number;

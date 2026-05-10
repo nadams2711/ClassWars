@@ -9,6 +9,7 @@ import {
   packChallenges,
   badges,
 } from "./schema";
+import { sql as rawSql } from "drizzle-orm";
 
 const sql = neon(process.env.DATABASE_URL!);
 const db = drizzle(sql);
@@ -574,6 +575,710 @@ const CHALLENGES: ChallengeRow[] = [
    "Debate a mystery topic revealed at the last second. Adapt on the fly."],
   ["Reaction Face Relay", "Teamwork", "social", "30s", "Standing", "Medium", "hybrid", "universal", "universal",
    "Pass a reaction from person to person. Each must add more intensity."],
+
+  // ═══════════════════════════════════════════
+  // KIDS HIGH-ENERGY (singing, dancing, jumping, running, etc.)
+  // ═══════════════════════════════════════════
+  ["Dance Battle Showdown", "Performance", "bold", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Show off your wildest dance moves! You have 60 seconds to bust out every move you know. The crazier the better -- the host picks the champion dancer!"],
+  ["Freeze Dance Frenzy", "Performance", "chaos", "1m", "Standing", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Dance as hard as you can, then FREEZE when the host says stop! If you wobble, you're out. Last one standing wins. Tap when you've been eliminated."],
+  ["Silly Walk Race", "Performance", "bold", "30s", "Light movement", "Loud", "judge", "classroom", "recess_riot",
+   "Race across the room using the silliest walk you can invent. Bonus points for sound effects! No normal walking allowed."],
+  ["Jump Like A...", "Improv", "mild", "30s", "Standing", "Medium", "judge", "classroom", "recess_riot",
+   "The host names an animal and you have to jump like that animal! Frog jumps, kangaroo hops, bunny bounces -- commit to the character!"],
+  ["Musical Statues", "Performance", "mild", "1m", "Standing", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Dance around the room and freeze in the funniest pose when the host claps. Hold your pose without laughing! Tap complete when you survive."],
+  ["Karaoke King", "Performance", "chaos", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Sing your favourite song as loudly and dramatically as possible! Add dance moves, air guitar, dramatic drops to your knees -- full pop star mode!"],
+  ["The Floor Is Lava!", "Performance", "bold", "30s", "Light movement", "Loud", "completion_tap", "classroom", "recess_riot",
+   "When the host yells GO, get off the floor! Stand on your chair, jump on a desk, climb on anything safe. Last one still on the floor loses!"],
+  ["Invisible Jump Rope", "Performance", "mild", "30s", "Standing", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Jump rope with an invisible rope! Count your jumps out loud. Try to do as many as possible in 30 seconds without tripping on your invisible rope."],
+  ["Animal Dance Party", "Improv", "chaos", "1m", "Standing", "Loud", "vote", "classroom", "recess_riot",
+   "Pick your favourite animal and dance the way that animal would dance at a party. A chicken doing the cha-cha? A bear doing ballet? Go wild!"],
+  ["Speed Clap Challenge", "Performance", "mild", "30s", "Seated", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Clap as fast as you possibly can for 30 seconds! Try different clap styles -- overhead claps, behind-your-back claps, spinning claps!"],
+  ["Sing Everything You Say", "Improv", "bold", "2m", "Seated", "Loud", "judge", "classroom", "recess_riot",
+   "For the next 2 minutes, you cannot speak -- you must SING everything. Answer questions, have conversations, but every word must be sung like an opera!"],
+  ["Hop Scotch Relay", "Teamwork", "bold", "1m", "Light movement", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Hop on one foot from one end of the room to the other and back! Switch feet halfway. Tap complete when you make it back."],
+  ["Crab Walk Race", "Performance", "chaos", "30s", "Light movement", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Get into crab walk position and race across the room! Hands and feet on the ground, belly facing up. First one across wins!"],
+  ["Shake It Off", "Performance", "mild", "30s", "Standing", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Shake every part of your body as fast as you can! Start with your hands, then arms, then legs, then your whole body. Get ALL the wiggles out!"],
+  ["Air Guitar Hero", "Performance", "bold", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Perform the most epic air guitar solo of all time! Include windmill strums, knee slides, and a dramatic guitar smash at the end."],
+  ["Balloon Pop Dance", "Performance", "chaos", "1m", "Standing", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Dance with an imaginary balloon between your knees. Don't let it 'pop'! If you stop dancing, the balloon pops and you're out."],
+  ["Singing Bee Spelling", "Creativity", "bold", "1m", "Seated", "Loud", "judge", "classroom", "recess_riot",
+   "The host gives you a word and you have to spell it by SINGING each letter as a different note. Make it a catchy tune!"],
+  ["Superhero Landing Contest", "Performance", "chaos", "30s", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Do the most dramatic superhero landing you can! Jump, crouch, slam your fist on the ground, and look up slowly. The host scores your epic-ness!"],
+  ["Penguin Waddle Race", "Performance", "mild", "30s", "Light movement", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Put something between your knees (or pretend to) and waddle across the room like a penguin! First penguin across wins."],
+  ["Disco Fever", "Performance", "bold", "1m", "Standing", "Loud", "vote", "classroom", "recess_riot",
+   "Hit your best disco moves! Point to the sky, point to the floor, do the hustle, spin around. The crowd votes for the grooviest dancer!"],
+  ["Tongue Twister Sing-Along", "Performance", "chaos", "1m", "Seated", "Loud", "judge", "classroom", "recess_riot",
+   "Sing a tongue twister as fast as you can to any tune you want! 'She sells seashells' to the tune of Jingle Bells? The messier the better!"],
+  ["Giant Steps Challenge", "Performance", "mild", "30s", "Light movement", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Cross the room in the FEWEST steps possible. Take the biggest, most dramatic giant steps you can. Count them out loud!"],
+  ["Rock Star Stage Dive", "Performance", "legend", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Perform like you're headlining a concert! Sing, jump, crowd surf (gently!), throw up the horns. End with a dramatic mic drop."],
+  ["Speed Skipper", "Performance", "bold", "30s", "Standing", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Skip around the room as fast as you can! Not running -- SKIPPING. See how many laps you can do in 30 seconds."],
+  ["Musical Chairs Freeze", "Performance", "chaos", "1m", "Light movement", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Walk around the room dancing, and when the host claps, sit in the nearest chair! No chair? You're out! Tap complete when eliminated."],
+  ["Stomping Beat Machine", "Creativity", "bold", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Create a beat using ONLY stomps, claps, and your voice! Layer them together to build the sickest beat. Everyone joins in on the rhythm!"],
+  ["Limbo Time", "Performance", "mild", "1m", "Standing", "Medium", "completion_tap", "classroom", "recess_riot",
+   "How low can you go? Lean back and try to go under the imaginary limbo bar! Each round it gets lower. Tap complete when you survive."],
+  ["Crazy Chicken Dance", "Performance", "chaos", "30s", "Standing", "Loud", "vote", "classroom", "recess_riot",
+   "Do the chicken dance but make it YOUR OWN. Add flips, add spins, add drama. The crowd votes for the best remix of the chicken dance!"],
+  ["Whisper Song Guess", "Improv", "mild", "1m", "Seated", "Quiet", "text", "classroom", "recess_riot",
+   "Whisper-sing a famous song and see if others can guess it! Type the song name after performing. Make it tricky!"],
+  ["Bounce House Energy", "Performance", "chaos", "30s", "Standing", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Bounce in place like you're in a bounce house! Jump as high as you can, spin in the air, and keep bouncing for 30 seconds straight!"],
+  ["March of the Ants", "Teamwork", "mild", "1m", "Light movement", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Everyone marches around the room in a line like ants! Follow the leader, copy their marching style. When the host says switch, the back person leads!"],
+  ["Soundtrack Sprint", "Improv", "bold", "30s", "Light movement", "Loud", "judge", "classroom", "recess_riot",
+   "Run in slow motion across the room while singing your own dramatic soundtrack! 'Dun dun DUNNN!' The host judges the best movie moment."],
+  ["Wiggle Worm", "Performance", "mild", "30s", "Standing", "Medium", "completion_tap", "classroom", "recess_riot",
+   "Wiggle every part of your body from head to toe like a worm! Start at the top and let the wiggle travel all the way down to your feet."],
+  ["Ninja Pose Battle", "Performance", "bold", "30s", "Standing", "Medium", "judge", "classroom", "recess_riot",
+   "Strike ninja poses as fast as you can! Each pose must be different. Throw kicks, chops, and blocks in rapid fire. Most poses in 30 seconds wins!"],
+  ["Opera Singer Challenge", "Performance", "legend", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Sing your lunch order like a dramatic opera singer! Belt it out with passion, vibrato, and dramatic hand gestures. PIZZAAA SLIIICE!"],
+  ["Leapfrog Countdown", "Teamwork", "chaos", "1m", "Light movement", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Everyone does jumping jacks while counting down from 20 together! Speed up as you go. If the group finishes together, everyone wins!"],
+  ["Wacky Workout", "Performance", "bold", "1m", "Standing", "Loud", "judge", "classroom", "recess_riot",
+   "Invent the most ridiculous exercise move ever and teach it to the class! Give it a funny name and demonstrate with full energy."],
+  ["Beatbox Battle", "Creativity", "chaos", "1m", "Seated", "Loud", "judge", "classroom", "recess_riot",
+   "Drop your best beatbox! Boots and cats and boots and cats -- or invent your own sounds. Layer in some scratch effects and bass drops!"],
+  ["Victory Lap", "Performance", "mild", "30s", "Light movement", "Loud", "completion_tap", "classroom", "recess_riot",
+   "Run a victory lap around the room with your arms in the air like you just won the World Cup! High-five everyone on the way!"],
+  ["Dance Move Chain", "Teamwork", "bold", "2m", "Standing", "Loud", "vote", "classroom", "recess_riot",
+   "Each person adds one dance move to a growing sequence! First person does one move, next does that move plus a new one. How long can the chain get?"],
+];
+
+// ──────────────────────────────────────────────
+// Interactive Challenges
+// ──────────────────────────────────────────────
+
+interface InteractiveChallengeRow {
+  title: string;
+  category: string;
+  intensity: string;
+  duration: string;
+  movement: string;
+  noise: string;
+  submission: string;
+  audience: string;
+  audiencePack: string;
+  instructions: string;
+  interactiveData: Record<string, unknown>;
+}
+
+const INTERACTIVE_CHALLENGES: InteractiveChallengeRow[] = [
+  // ── describe_avatar (3) ──
+  {
+    title: "Dream Date Description",
+    category: "Creativity", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Look at the pixel creature on your screen. Describe it as if it were your dream date. Be romantic, be dramatic, be ridiculous!",
+    interactiveData: { type: "describe_avatar", avatarIndex: 3, prompt: "Describe this creature as your dream date" },
+  },
+  {
+    title: "Monster Adoption Pitch",
+    category: "Creativity", intensity: "chaos", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "You found this creature and want to adopt it. Write a convincing pitch to your parents about why this is the perfect pet.",
+    interactiveData: { type: "describe_avatar", avatarIndex: 10, prompt: "Convince your parents to adopt this creature" },
+  },
+  {
+    title: "Wanted Poster",
+    category: "Creativity", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "This pixel creature is WANTED. Write their wanted poster -- what crime did they commit? What's the reward?",
+    interactiveData: { type: "describe_avatar", avatarIndex: 18, prompt: "Write a wanted poster for this outlaw" },
+  },
+
+  // ── emoji_prompt (2) ──
+  {
+    title: "Emoji Movie Plot",
+    category: "Creativity", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "These emojis represent a movie plot. Write a one-paragraph movie synopsis based on them.",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F469}", "\u{1F48D}", "\u{1F409}", "\u{1F525}", "\u{1F451}"], prompt: "Write a movie synopsis from these emojis" },
+  },
+  {
+    title: "Emoji Excuse Generator",
+    category: "Improv", intensity: "bold", duration: "1m", movement: "Seated", noise: "Medium", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Use these emojis to craft the most creative excuse for why you didn't do your homework.",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F436}", "\u{1F4DA}", "\u{1F32A}", "\u{1F47D}", "\u{1F62D}"], prompt: "Create an excuse for missing homework" },
+  },
+
+  // ── tap_frenzy (4) ──
+  {
+    title: "Speed Tapper",
+    category: "Performance", intensity: "chaos", duration: "30s", movement: "Seated", noise: "Medium", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Tap your screen as fast as humanly possible! The player with the most taps wins!",
+    interactiveData: { type: "tap_frenzy", durationSeconds: 10, prompt: "Most taps in 10 seconds wins!" },
+  },
+  {
+    title: "Hum That Tune",
+    category: "Performance", intensity: "bold", duration: "1m", movement: "Seated", noise: "Medium", submission: "vote", audience: "universal", audiencePack: "universal",
+    instructions: "Hum a famous song into your phone -- no words allowed! Everyone else will try to guess what song it is. Best humming performance wins the vote!",
+    interactiveData: { type: "sound_effect", durationSeconds: 15, prompt: "Hum a famous song -- no words!" },
+  },
+  {
+    title: "Thumb War Solo",
+    category: "Performance", intensity: "bold", duration: "30s", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Use only your thumb! How many taps can you get in 8 seconds with just one thumb?",
+    interactiveData: { type: "tap_frenzy", durationSeconds: 8, prompt: "Thumb only! 8 seconds!" },
+  },
+  {
+    title: "Office Stress Relief",
+    category: "Performance", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "Channel all your Monday energy into tapping! Think of it as aggressive keyboard typing practice.",
+    interactiveData: { type: "tap_frenzy", durationSeconds: 10, prompt: "Release that Monday energy!" },
+  },
+
+  // ── reaction_time (4) ──
+  {
+    title: "Reflex Showdown",
+    category: "Observation", intensity: "bold", duration: "30s", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Wait for the screen to turn GREEN, then tap as fast as you can! But don't tap too early or it won't count!",
+    interactiveData: { type: "reaction_time", rounds: 5, prompt: "Wait for green... TAP!" },
+  },
+  {
+    title: "Mystery Voice",
+    category: "Performance", intensity: "chaos", duration: "1m", movement: "Seated", noise: "Medium", submission: "vote", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Disguise your voice and record a secret message! Change your pitch, accent, or style. Everyone guesses whose voice it is -- best disguise wins!",
+    interactiveData: { type: "sound_effect", durationSeconds: 10, prompt: "Disguise your voice! Can they guess who you are?" },
+  },
+  {
+    title: "Sing-Off Snippet",
+    category: "Performance", intensity: "legend", duration: "1m", movement: "Seated", noise: "Loud", submission: "vote", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Record yourself singing 10 seconds of ANY song! Belt it out, whisper it, rap it -- your choice! The crowd votes for the best performance!",
+    interactiveData: { type: "sound_effect", durationSeconds: 10, prompt: "Sing 10 seconds of any song!" },
+  },
+  {
+    title: "Coffee Reflex Test",
+    category: "Observation", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "How much coffee did you have today? Let's measure your reaction time and find out!",
+    interactiveData: { type: "reaction_time", rounds: 3, prompt: "Coffee-powered reflexes!" },
+  },
+
+  // ── photo_selfie (4) ──
+  {
+    title: "Copy That Face",
+    category: "Performance", intensity: "bold", duration: "1m", movement: "Seated", noise: "Medium", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Look at the pixel creature on screen. Now take a selfie making the EXACT same face! The funniest match wins!",
+    interactiveData: { type: "photo_selfie", avatarIndex: 3, prompt: "Copy this creature's face!" },
+  },
+  {
+    title: "Celebrity Lookalike",
+    category: "Performance", intensity: "chaos", duration: "2m", movement: "Seated", noise: "Medium", submission: "vote", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Take a selfie doing your best celebrity impression! Strike a famous pose, make their signature face. Everyone votes on who nailed it!",
+    interactiveData: { type: "photo_selfie", avatarIndex: 12, prompt: "Strike your best celebrity pose!" },
+  },
+  {
+    title: "Mood Selfie",
+    category: "Creativity", intensity: "mild", duration: "2m", movement: "Seated", noise: "Quiet", submission: "vote", audience: "universal", audiencePack: "universal",
+    instructions: "Take a selfie that perfectly captures a random emotion: 'confused by a math problem', 'just won the lottery', 'smelled something weird'. The host picks the emotion!",
+    interactiveData: { type: "photo_selfie", avatarIndex: 5, prompt: "Show us that emotion with your face!" },
+  },
+  {
+    title: "Boss Mode Selfie",
+    category: "Performance", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "Take a power selfie channeling big boss energy. Think CEO headshot meets superhero pose.",
+    interactiveData: { type: "photo_selfie", avatarIndex: 12, prompt: "Channel your inner CEO!" },
+  },
+
+  // ── shake_meter (4) ──
+  {
+    title: "Earthquake Generator",
+    category: "Performance", intensity: "chaos", duration: "30s", movement: "Standing", noise: "Medium", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Shake your phone like you're creating an earthquake! The harder you shake, the higher your score!",
+    interactiveData: { type: "shake_meter", durationSeconds: 10, prompt: "Create a magnitude 10 earthquake!" },
+  },
+  {
+    title: "Milkshake Maker",
+    category: "Performance", intensity: "bold", duration: "30s", movement: "Standing", noise: "Medium", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "You're making a milkshake with your phone! Shake it up! The most vigorous shaker wins!",
+    interactiveData: { type: "shake_meter", durationSeconds: 12, prompt: "Shake that milkshake!" },
+  },
+  {
+    title: "Guess My Sound",
+    category: "Improv", intensity: "bold", duration: "1m", movement: "Seated", noise: "Medium", submission: "vote", audience: "universal", audiencePack: "universal",
+    instructions: "Record a sound effect for an everyday action -- a door creaking, popcorn popping, a car starting. Don't tell anyone what it is! Everyone guesses!",
+    interactiveData: { type: "sound_effect", durationSeconds: 8, prompt: "Make a mystery sound effect!" },
+  },
+  {
+    title: "Martini Mixer",
+    category: "Performance", intensity: "mild", duration: "30s", movement: "Standing", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "Shaken, not stirred! Mix the perfect virtual martini by shaking your phone with style and finesse.",
+    interactiveData: { type: "shake_meter", durationSeconds: 8, prompt: "Shaken, not stirred!" },
+  },
+
+  // ── this_or_that (6) ──
+  {
+    title: "Food Fight Showdown",
+    category: "Social courage", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Rapid-fire food choices! Pick your favorite as fast as you can. Speed counts!",
+    interactiveData: { type: "this_or_that", choices: [
+      { a: "Pizza", b: "Tacos" }, { a: "Ice Cream", b: "Cake" }, { a: "Burgers", b: "Hot Dogs" },
+      { a: "Fries", b: "Onion Rings" }, { a: "Chocolate", b: "Gummy Bears" }, { a: "Pancakes", b: "Waffles" },
+      { a: "Sushi", b: "Pasta" }, { a: "Cookies", b: "Brownies" },
+    ]},
+  },
+  {
+    title: "Would You Rather: School Edition",
+    category: "Social courage", intensity: "bold", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Would you rather... Make your choice fast! Fastest fingers get bonus points.",
+    interactiveData: { type: "this_or_that", choices: [
+      { a: "No homework ever", b: "No tests ever" }, { a: "Extra recess", b: "Extra lunch" },
+      { a: "Be the teacher", b: "Be the principal" }, { a: "School on a beach", b: "School on a spaceship" },
+      { a: "Invisible for a day", b: "Fly for a day" }, { a: "Read minds", b: "Time travel" },
+    ]},
+  },
+  {
+    title: "Life Choices Lightning Round",
+    category: "Social courage", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Quick-fire life preferences! No overthinking -- go with your gut!",
+    interactiveData: { type: "this_or_that", choices: [
+      { a: "Dogs", b: "Cats" }, { a: "Summer", b: "Winter" }, { a: "Mountains", b: "Beach" },
+      { a: "Morning Person", b: "Night Owl" }, { a: "City", b: "Countryside" },
+      { a: "Books", b: "Movies" }, { a: "Sweet", b: "Salty" }, { a: "Rain", b: "Sunshine" },
+    ]},
+  },
+  {
+    title: "Office Dilemmas",
+    category: "Social courage", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "office", audiencePack: "office_fun",
+    instructions: "Workplace choices! Answer fast to score big!",
+    interactiveData: { type: "this_or_that", choices: [
+      { a: "Work from home", b: "Work from office" }, { a: "Window seat", b: "Corner office" },
+      { a: "Free lunch daily", b: "Leave 2 hours early" }, { a: "No meetings ever", b: "No emails ever" },
+      { a: "Casual Friday every day", b: "4-day work week" }, { a: "Perfect coffee", b: "Perfect WiFi" },
+    ]},
+  },
+  {
+    title: "Pop Culture Picks",
+    category: "Social courage", intensity: "bold", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Entertainment picks at lightning speed!",
+    interactiveData: { type: "this_or_that", choices: [
+      { a: "Marvel", b: "DC" }, { a: "Star Wars", b: "Star Trek" },
+      { a: "Harry Potter", b: "Lord of the Rings" }, { a: "Netflix", b: "YouTube" },
+      { a: "TikTok", b: "Instagram" }, { a: "Console Gaming", b: "PC Gaming" },
+      { a: "Comedy", b: "Action" },
+    ]},
+  },
+  {
+    title: "Superpower Speed Round",
+    category: "Creativity", intensity: "chaos", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Which superpower would you choose? Decide FAST!",
+    interactiveData: { type: "this_or_that", choices: [
+      { a: "Fly", b: "Teleport" }, { a: "Super strength", b: "Super speed" },
+      { a: "Invisible", b: "Shape-shift" }, { a: "Read minds", b: "Control weather" },
+      { a: "Talk to animals", b: "Breathe underwater" }, { a: "Laser eyes", b: "Ice breath" },
+      { a: "Time travel", b: "Telekinesis" },
+    ]},
+  },
+
+  // ── drawing (5) ──
+  {
+    title: "Dino Dessert",
+    category: "Creativity", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Draw a dinosaur eating ice cream! Be creative with the flavors and the dino's expression.",
+    interactiveData: { type: "drawing", prompt: "Draw a dinosaur eating ice cream" },
+  },
+  {
+    title: "Self Portrait Speed Draw",
+    category: "Creativity", intensity: "bold", duration: "30s", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "You have 30 seconds to draw a self-portrait! It doesn't have to be good -- it has to be FAST!",
+    interactiveData: { type: "drawing", prompt: "Draw a self-portrait in 30 seconds!" },
+  },
+  {
+    title: "Dream Pet Designer",
+    category: "Creativity", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Design your dream pet! It can be a mix of any animals. Draw it and give it a name!",
+    interactiveData: { type: "drawing", prompt: "Design your ultimate dream pet" },
+  },
+  {
+    title: "Boss's New Logo",
+    category: "Innovation", intensity: "bold", duration: "1m", movement: "Seated", noise: "Quiet", submission: "text", audience: "office", audiencePack: "office_fun",
+    instructions: "The company needs a new logo! Draw the most creative (or ridiculous) company logo you can imagine.",
+    interactiveData: { type: "drawing", prompt: "Draw a new company logo" },
+  },
+  {
+    title: "Alien Selfie",
+    category: "Creativity", intensity: "chaos", duration: "1m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "An alien is taking a selfie on Earth for the first time! Draw what they look like with a famous landmark behind them.",
+    interactiveData: { type: "drawing", prompt: "Draw an alien taking a selfie on Earth" },
+  },
+
+  // ── location-specific (8) ──
+  {
+    title: "Park Creature Spotter",
+    category: "Observation", intensity: "mild", duration: "2m", movement: "Light movement", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Look at this creature. Now look around the park -- find something in nature that looks like it! Describe what you found.",
+    interactiveData: { type: "describe_avatar", avatarIndex: 9, prompt: "Find something in the park that looks like this creature", locations: ["park"] },
+  },
+  {
+    title: "Nature Sound Orchestra",
+    category: "Performance", intensity: "bold", duration: "2m", movement: "Standing", noise: "Medium", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Combine the sounds you hear around you into a musical performance! Layer park sounds with your own beatboxing or humming.",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F333}", "\u{1F426}", "\u{1F3B6}", "\u{1F3A4}", "\u{1F33F}"], prompt: "Create music from the nature sounds around you", locations: ["park"] },
+  },
+  {
+    title: "Menu Mashup",
+    category: "Creativity", intensity: "chaos", duration: "2m", movement: "Seated", noise: "Medium", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Combine two items from the restaurant menu into a brand new dish! Give it a fancy name and describe it like a Michelin-star creation.",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F37D}", "\u{1F468}\u200D\u{1F373}", "\u2728", "\u{1F4AB}", "\u{1F947}"], prompt: "Create a new dish from the menu around you", locations: ["restaurant"] },
+  },
+  {
+    title: "Restaurant Critic Battle",
+    category: "Performance", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Write the most dramatic restaurant review of where you are right now. Is it five stars or zero stars? You decide!",
+    interactiveData: { type: "describe_avatar", avatarIndex: 5, prompt: "Write a dramatic review as this food critic", locations: ["restaurant"] },
+  },
+  {
+    title: "Beach Treasure Hunt",
+    category: "Observation", intensity: "mild", duration: "2m", movement: "Light movement", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Find something interesting near you at the beach! Describe it as if it's a priceless archaeological discovery.",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F3D6}", "\u{1F41A}", "\u2728", "\u{1F50D}", "\u{1F4CE}"], prompt: "Find and describe a beach treasure", locations: ["beach"] },
+  },
+  {
+    title: "Home Object Roast",
+    category: "Improv", intensity: "bold", duration: "1m", movement: "Seated", noise: "Medium", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Pick an object in your home and absolutely ROAST it. What's wrong with this object? Why is it the worst?",
+    interactiveData: { type: "describe_avatar", avatarIndex: 4, prompt: "Roast a household object like this creature would", locations: ["home"] },
+  },
+  {
+    title: "Draw the View",
+    category: "Creativity", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Draw what you see right now! Turn the view from where you're sitting into pixel art on the canvas.",
+    interactiveData: { type: "drawing", prompt: "Draw the view from where you are right now", locations: ["park", "beach", "restaurant"] },
+  },
+  {
+    title: "Sandcastle Blueprint",
+    category: "Creativity", intensity: "bold", duration: "1m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Design the ultimate sandcastle! Draw your architectural masterpiece on the canvas. Include towers, moats, and flags!",
+    interactiveData: { type: "drawing", prompt: "Design the ultimate sandcastle blueprint", locations: ["beach"] },
+  },
+
+  // ── memory_sequence (4) ──
+  {
+    title: "Simon Says Remember",
+    category: "Memory", intensity: "bold", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Watch the colored squares light up in order. Then tap them back in the same sequence! Each round gets harder!",
+    interactiveData: { type: "memory_sequence", sequenceLength: 4, prompt: "Watch the pattern, then repeat it!" },
+  },
+  {
+    title: "Brain Blitz",
+    category: "Memory", intensity: "chaos", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Think you have a good memory? Watch the sequence of 5 colors and repeat it perfectly. Three rounds, each one longer!",
+    interactiveData: { type: "memory_sequence", sequenceLength: 5, prompt: "Big brain time! 5 colors to remember!" },
+  },
+  {
+    title: "Memory Master",
+    category: "Memory", intensity: "legend", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_low_noise",
+    instructions: "The ultimate memory challenge! 6 colors to memorize per round. Only a true memory master can ace all 3 rounds!",
+    interactiveData: { type: "memory_sequence", sequenceLength: 6, prompt: "6 colors! Can you handle it?" },
+  },
+  {
+    title: "Focus Training",
+    category: "Memory", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_professional",
+    instructions: "A quick brain warm-up! Watch 3 colors, repeat them back. Simple but surprisingly tricky after lunch.",
+    interactiveData: { type: "memory_sequence", sequenceLength: 3, prompt: "Quick brain warm-up!" },
+  },
+
+  // ── tilt_target (4) ──
+  {
+    title: "Tilt Master",
+    category: "Performance", intensity: "bold", duration: "30s", movement: "Standing", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Tilt your phone to guide the ball into the target! Hit all 5 targets as fast as you can!",
+    interactiveData: { type: "tilt_target", rounds: 5, prompt: "Tilt to hit 5 targets!" },
+  },
+  {
+    title: "Steady Hands",
+    category: "Observation", intensity: "chaos", duration: "30s", movement: "Standing", noise: "Quiet", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_low_noise",
+    instructions: "How steady are your hands? Tilt to guide the ball into 7 targets. Don't shake!",
+    interactiveData: { type: "tilt_target", rounds: 7, prompt: "7 targets! Keep those hands steady!" },
+  },
+  {
+    title: "Phone Pilot",
+    category: "Performance", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "You're a pilot! Tilt your phone to fly the ball into 3 landing zones. Smooth landings only!",
+    interactiveData: { type: "tilt_target", rounds: 3, prompt: "Pilot your ball to 3 landing zones!" },
+  },
+  {
+    title: "Balance Test",
+    category: "Observation", intensity: "mild", duration: "30s", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "A quick coordination break! Tilt to hit 4 targets. Faster times win!",
+    interactiveData: { type: "tilt_target", rounds: 4, prompt: "Hit 4 targets for the best time!" },
+  },
+
+  // ── sound_effect (4) ──
+  {
+    title: "Sound Effects Master",
+    category: "Performance", intensity: "chaos", duration: "1m", movement: "Seated", noise: "Loud", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Record the best sound effect you can make! Explosions, laser beams, animal noises -- anything goes!",
+    interactiveData: { type: "sound_effect", durationSeconds: 10, prompt: "Record your best sound effect!" },
+  },
+  {
+    title: "Animal Impressions",
+    category: "Performance", intensity: "bold", duration: "1m", movement: "Seated", noise: "Loud", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Record your best animal sound! Make it as realistic (or as ridiculous) as possible!",
+    interactiveData: { type: "sound_effect", durationSeconds: 8, prompt: "Do your best animal impression!" },
+  },
+  {
+    title: "Beatbox Drop",
+    category: "Performance", intensity: "legend", duration: "1m", movement: "Seated", noise: "Loud", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Drop a sick beat! Record your best 15-second beatbox session!",
+    interactiveData: { type: "sound_effect", durationSeconds: 15, prompt: "Drop a 15-second beat!" },
+  },
+  {
+    title: "Elevator Pitch Voice",
+    category: "Presentation", intensity: "mild", duration: "1m", movement: "Seated", noise: "Medium", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "Record your most dramatic movie trailer voice saying 'In a world where deadlines are real...'",
+    interactiveData: { type: "sound_effect", durationSeconds: 10, prompt: "Your best movie trailer voice!" },
+  },
+
+  // ── emoji_slider (4) ──
+  {
+    title: "Rate Everything",
+    category: "Social courage", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Slide to rate! How do you feel about each thing? Drag the slider toward the emoji that fits!",
+    interactiveData: { type: "emoji_slider", prompt: "Rate these on the emoji scale!", items: [
+      { prompt: "Monday mornings", leftEmoji: "\u{1F634}", rightEmoji: "\u{1F929}" },
+      { prompt: "Homework", leftEmoji: "\u{1F4A9}", rightEmoji: "\u{1F48E}" },
+      { prompt: "Pizza", leftEmoji: "\u{1F44E}", rightEmoji: "\u{1F44D}" },
+      { prompt: "Rainy days", leftEmoji: "\u{1F622}", rightEmoji: "\u{1F60D}" },
+      { prompt: "This class", leftEmoji: "\u{1F971}", rightEmoji: "\u{1F525}" },
+    ]},
+  },
+  {
+    title: "Mood Check",
+    category: "Social courage", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_low_noise",
+    instructions: "Quick mood check! Slide to show how you feel about each thing right now.",
+    interactiveData: { type: "emoji_slider", prompt: "How are you feeling?", items: [
+      { prompt: "Energy level", leftEmoji: "\u{1F6CC}", rightEmoji: "\u26A1" },
+      { prompt: "Hunger level", leftEmoji: "\u{1F610}", rightEmoji: "\u{1F924}" },
+      { prompt: "Fun level", leftEmoji: "\u{1F971}", rightEmoji: "\u{1F973}" },
+      { prompt: "Creativity", leftEmoji: "\u{1F9F1}", rightEmoji: "\u{1F3A8}" },
+    ]},
+  },
+  {
+    title: "Hot Takes",
+    category: "Social courage", intensity: "bold", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Give your hottest takes! Slide all the way to one side if you feel strongly!",
+    interactiveData: { type: "emoji_slider", prompt: "How hot are your takes?", items: [
+      { prompt: "Pineapple on pizza", leftEmoji: "\u{1F922}", rightEmoji: "\u{1F60B}" },
+      { prompt: "Waking up early", leftEmoji: "\u{1F47F}", rightEmoji: "\u{1F607}" },
+      { prompt: "Math class", leftEmoji: "\u{1F480}", rightEmoji: "\u{1F4AF}" },
+      { prompt: "School lunch", leftEmoji: "\u{1F922}", rightEmoji: "\u{1F37D}" },
+      { prompt: "Pop quizzes", leftEmoji: "\u{1F4A3}", rightEmoji: "\u{1F3C6}" },
+    ]},
+  },
+  {
+    title: "Team Vibes",
+    category: "Culture", intensity: "mild", duration: "1m", movement: "Seated", noise: "Quiet", submission: "completion_tap", audience: "office", audiencePack: "office_professional",
+    instructions: "Anonymous team pulse check! How are we doing on these?",
+    interactiveData: { type: "emoji_slider", prompt: "Rate the team vibes!", items: [
+      { prompt: "Meeting quality", leftEmoji: "\u{1F634}", rightEmoji: "\u{1F4A1}" },
+      { prompt: "Coffee quality", leftEmoji: "\u{1F922}", rightEmoji: "\u2615" },
+      { prompt: "Friday energy", leftEmoji: "\u{1F40C}", rightEmoji: "\u{1F680}" },
+      { prompt: "Snack situation", leftEmoji: "\u{1F3DC}", rightEmoji: "\u{1F36D}" },
+    ]},
+  },
+
+  // ═══════════════════════════════════════════
+  // PERSONAL & GUESS WHO CHALLENGES
+  // ═══════════════════════════════════════════
+
+  // ── "About You" text challenges (no timer pressure -- long durations) ──
+  {
+    title: "Two Truths One Lie",
+    category: "Social courage", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Write down 3 statements about yourself -- 2 true and 1 lie. Make them tricky! Everyone will try to spot the lie. Submit all 3 in the text box.",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u2705", "\u2705", "\u274C", "\u{1F914}", "\u{1F50D}"], prompt: "2 truths, 1 lie -- can they spot it?" },
+  },
+  {
+    title: "Secret Talent Reveal",
+    category: "Social courage", intensity: "mild", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Share a hidden talent or weird skill nobody knows about. Can you touch your nose with your tongue? Solve a Rubik's cube? Write it and the host reads them anonymously!",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F3AD}", "\u2728", "\u{1F929}", "\u{1F52E}", "\u2753"], prompt: "What's YOUR secret talent?" },
+  },
+  {
+    title: "Unpopular Opinion",
+    category: "Social courage", intensity: "chaos", duration: "2m", movement: "Seated", noise: "Medium", submission: "vote", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Share your most unpopular opinion! 'Homework is actually fun', 'Pizza is overrated', 'Monday is the best day'. The crowd votes on the hottest take!",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F525}", "\u{1F4A3}", "\u{1F60E}", "\u{1F92F}", "\u{1F3A4}"], prompt: "Drop your hottest unpopular opinion!" },
+  },
+  {
+    title: "If I Were Famous",
+    category: "Creativity", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "vote", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "If you were famous, what would you be famous for? Write your answer and the host reads them out -- everyone guesses who said what!",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u2B50", "\u{1F3AC}", "\u{1F3A4}", "\u{1F3C6}", "\u{1F451}"], prompt: "What would YOU be famous for?" },
+  },
+  {
+    title: "Guess My Breakfast",
+    category: "Social courage", intensity: "mild", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Write what you had for breakfast today (or what you WISH you had). The host reads them anonymously and everyone guesses who eats what!",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F95E}", "\u{1F373}", "\u{1F950}", "\u{1F95B}", "\u2753"], prompt: "What did you eat this morning?" },
+  },
+  {
+    title: "My Guilty Pleasure Song",
+    category: "Social courage", intensity: "bold", duration: "2m", movement: "Seated", noise: "Quiet", submission: "text", audience: "universal", audiencePack: "universal",
+    instructions: "Write down a song you secretly LOVE but would never admit to. The host reads them out and everyone guesses whose guilty pleasure it is!",
+    interactiveData: { type: "emoji_prompt", emojis: ["\u{1F3B5}", "\u{1F917}", "\u{1F648}", "\u{1F3A7}", "\u2764\uFE0F"], prompt: "Confess your guilty pleasure song!" },
+  },
+
+  // ── Voice/Audio "Guess Who" challenges ──
+  {
+    title: "Whisper Challenge",
+    category: "Performance", intensity: "bold", duration: "1m", movement: "Seated", noise: "Quiet", submission: "vote", audience: "classroom", audiencePack: "classroom_low_noise",
+    instructions: "Whisper a famous movie quote or song lyric into your phone! Keep it quiet -- everyone will listen and try to figure out what you said AND who said it!",
+    interactiveData: { type: "sound_effect", durationSeconds: 10, prompt: "Whisper a famous quote -- can they hear it?" },
+  },
+  {
+    title: "Voice Impression",
+    category: "Performance", intensity: "chaos", duration: "1m", movement: "Seated", noise: "Loud", submission: "vote", audience: "universal", audiencePack: "universal",
+    instructions: "Do your best impression of a famous person, cartoon character, or movie villain! Record it and everyone votes on the best impression!",
+    interactiveData: { type: "sound_effect", durationSeconds: 10, prompt: "Do your best voice impression!" },
+  },
+
+  // ── Photo "Guess Who" / personal photo challenges ──
+  {
+    title: "Shoe Reveal",
+    category: "Social courage", intensity: "mild", duration: "2m", movement: "Seated", noise: "Quiet", submission: "vote", audience: "universal", audiencePack: "universal",
+    instructions: "Take a photo of JUST your shoes (or feet). The host shows each photo and everyone guesses whose shoes they are! You'd be surprised how hard this is!",
+    interactiveData: { type: "photo_selfie", avatarIndex: 0, prompt: "Snap a pic of your shoes!" },
+  },
+  {
+    title: "Bag Contents Mystery",
+    category: "Social courage", intensity: "mild", duration: "2m", movement: "Seated", noise: "Quiet", submission: "vote", audience: "universal", audiencePack: "universal",
+    instructions: "Take a photo of 3 items from your bag or pockets (no ID or personal info!). The host shows each photo and everyone guesses whose stuff it is!",
+    interactiveData: { type: "photo_selfie", avatarIndex: 15, prompt: "Show 3 mystery items from your bag!" },
+  },
+  {
+    title: "Desk Detective",
+    category: "Observation", intensity: "mild", duration: "2m", movement: "Seated", noise: "Quiet", submission: "vote", audience: "office", audiencePack: "office_fun",
+    instructions: "Take a close-up photo of ONE unique item on your desk. No faces or name tags! The team guesses whose desk it belongs to.",
+    interactiveData: { type: "photo_selfie", avatarIndex: 8, prompt: "Photograph your desk's most unique item!" },
+  },
+
+  // ═══════════════════════════════════════════
+  // GROUP ACTIVITIES
+  // ═══════════════════════════════════════════
+
+  // ── group_photo: Group Poses (5) ──
+  {
+    title: "Human Pyramid",
+    category: "Teamwork", intensity: "legend", duration: "2m", movement: "Light movement", noise: "Loud", submission: "photo", audience: "universal", audiencePack: "universal",
+    instructions: "Build a human pyramid with your group! Stack up safely, hold it steady, and snap a photo as proof! Biggest pyramid wins!",
+    interactiveData: { type: "group_photo", prompt: "Build a human pyramid and photograph it!", icon: "\u{1F3D4}" },
+  },
+  {
+    title: "Spell It Out",
+    category: "Teamwork", intensity: "bold", duration: "2m", movement: "Light movement", noise: "Medium", submission: "photo", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Use your bodies to spell out a word! Lie on the floor, stand in shapes -- whatever it takes! Take a photo from above!",
+    interactiveData: { type: "group_photo", prompt: "Spell a word with your bodies!", icon: "\u{1F524}" },
+  },
+  {
+    title: "Frozen Movie Scene",
+    category: "Performance", intensity: "bold", duration: "2m", movement: "Standing", noise: "Medium", submission: "photo", audience: "universal", audiencePack: "universal",
+    instructions: "Strike a frozen pose recreating a famous movie scene! Everyone in the group plays a character. Snap the photo!",
+    interactiveData: { type: "group_photo", prompt: "Recreate a famous movie scene -- freeze!", icon: "\u{1F3AC}" },
+  },
+  {
+    title: "World's Worst Photo",
+    category: "Creativity", intensity: "chaos", duration: "1m", movement: "Standing", noise: "Loud", submission: "photo", audience: "universal", audiencePack: "universal",
+    instructions: "Take the ugliest, most ridiculous group photo possible! Weird angles, crazy faces, maximum chaos. Worst photo wins!",
+    interactiveData: { type: "group_photo", prompt: "Take the WORST group photo possible!", icon: "\u{1F92A}" },
+  },
+  {
+    title: "Statue Garden",
+    category: "Creativity", intensity: "mild", duration: "2m", movement: "Standing", noise: "Quiet", submission: "photo", audience: "classroom", audiencePack: "classroom_low_noise",
+    instructions: "Everyone freezes as a statue in a garden! Each person picks a different pose. Take a photo of your 'garden'!",
+    interactiveData: { type: "group_photo", prompt: "Create a frozen statue garden!", icon: "\u{1F5FF}" },
+  },
+
+  // ── group_timer: Team Races (4) ──
+  {
+    title: "Hot Potato Relay",
+    category: "Teamwork", intensity: "chaos", duration: "1m", movement: "Light movement", noise: "Loud", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Pass an object around the circle as fast as possible! Start the timer, pass it to everyone, stop when it gets back to the start!",
+    interactiveData: { type: "group_timer", prompt: "Pass it around the circle -- fastest time wins!", icon: "\u{1F525}", activity: "relay_pass" },
+  },
+  {
+    title: "Synchronized Sit-Stand",
+    category: "Teamwork", intensity: "bold", duration: "1m", movement: "Standing", noise: "Medium", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Everyone sits down and stands up at the EXACT same time! Start the timer, do 10 perfectly synchronized sit-stands, stop the timer!",
+    interactiveData: { type: "group_timer", prompt: "10 synchronized sit-stands -- time it!", icon: "\u{1F9CD}", activity: "sync_sit_stand" },
+  },
+  {
+    title: "Cup Stack Race",
+    category: "Teamwork", intensity: "chaos", duration: "2m", movement: "Seated", noise: "Medium", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Stack cups (or books, or whatever you have) into a pyramid and take it back down! Fastest team time wins!",
+    interactiveData: { type: "group_timer", prompt: "Stack up and tear down -- fastest time wins!", icon: "\u{1F3C6}", activity: "cup_stack" },
+  },
+  {
+    title: "Office Chair Race",
+    category: "Teamwork", intensity: "legend", duration: "2m", movement: "Light movement", noise: "Loud", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "One person sits in a rolling chair, the rest push! Race to the finish line and back! Time your team!",
+    interactiveData: { type: "group_timer", prompt: "Chair race! Push your rider to victory!", icon: "\u{1FA91}", activity: "chair_race" },
+  },
+
+  // ── group_photo: Group Performances (4) ──
+  {
+    title: "Group Dance Freeze",
+    category: "Performance", intensity: "chaos", duration: "2m", movement: "Standing", noise: "Loud", submission: "judge", audience: "universal", audiencePack: "universal",
+    instructions: "Dance together as a group for 30 seconds, then FREEZE when the host says stop! Best frozen formation wins! Judge scores the group.",
+    interactiveData: { type: "group_photo", prompt: "Dance together then FREEZE for the photo!", icon: "\u{1F57A}" },
+  },
+  {
+    title: "Human Beatbox Band",
+    category: "Performance", intensity: "legend", duration: "2m", movement: "Standing", noise: "Loud", submission: "judge", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "Each person makes ONE sound. Layer them together to create a beat! Snap a photo of your 'band' in action!",
+    interactiveData: { type: "group_photo", prompt: "Form a beatbox band and snap the shot!", icon: "\u{1F3B6}" },
+  },
+  {
+    title: "Sync Clap Pattern",
+    category: "Teamwork", intensity: "bold", duration: "1m", movement: "Standing", noise: "Loud", submission: "judge", audience: "universal", audiencePack: "universal",
+    instructions: "Create a clapping pattern as a group! Start simple, get complex. The host judges the best synchronized routine!",
+    interactiveData: { type: "group_photo", prompt: "Show your synchronized clap routine!", icon: "\u{1F44F}" },
+  },
+  {
+    title: "Silent Movie Scene",
+    category: "Performance", intensity: "bold", duration: "3m", movement: "Light movement", noise: "Quiet", submission: "judge", audience: "classroom", audiencePack: "classroom_low_noise",
+    instructions: "Act out a scene together with NO sound -- like a silent movie! Exaggerated gestures only. The host judges the performance!",
+    interactiveData: { type: "group_photo", prompt: "Perform a silent movie scene!", icon: "\u{1F3AC}" },
+  },
+
+  // ── group_timer: Physical Challenges (4) ──
+  {
+    title: "Group Plank Challenge",
+    category: "Performance", intensity: "legend", duration: "2m", movement: "Light movement", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Everyone does a plank at the same time! Start the timer together. Stop when the LAST person drops. Longest group time wins!",
+    interactiveData: { type: "group_timer", prompt: "Group plank! Time how long everyone holds!", icon: "\u{1F4AA}", activity: "group_plank" },
+  },
+  {
+    title: "Jumping Jack Frenzy",
+    category: "Performance", intensity: "chaos", duration: "1m", movement: "Standing", noise: "Loud", submission: "completion_tap", audience: "classroom", audiencePack: "classroom_funny",
+    instructions: "How fast can your whole group do 50 jumping jacks together? Start the timer and count together out loud! GO!",
+    interactiveData: { type: "group_timer", prompt: "50 group jumping jacks -- time it!", icon: "\u{1F3C3}", activity: "jumping_jacks" },
+  },
+  {
+    title: "Balance Off",
+    category: "Observation", intensity: "bold", duration: "2m", movement: "Standing", noise: "Quiet", submission: "completion_tap", audience: "universal", audiencePack: "universal",
+    instructions: "Everyone stands on one foot! Start the timer. Stop when the last person puts their foot down. Longest balance wins!",
+    interactiveData: { type: "group_timer", prompt: "One-foot balance contest -- time it!", icon: "\u{1F9D8}", activity: "balance" },
+  },
+  {
+    title: "Speed Cleanup Race",
+    category: "Teamwork", intensity: "mild", duration: "2m", movement: "Light movement", noise: "Medium", submission: "completion_tap", audience: "office", audiencePack: "office_fun",
+    instructions: "Time how fast your team can organize 10 items on a desk into perfect order! Start messy, end tidy. Fastest time wins!",
+    interactiveData: { type: "group_timer", prompt: "Organize the mess -- fastest team wins!", icon: "\u{1F9F9}", activity: "speed_clean" },
+  },
 ];
 
 // ──────────────────────────────────────────────
@@ -621,6 +1326,14 @@ const PACKS = [
     icon: "zap",
     color: "#FFA502",
     challengeIndices: [221, 223, 226, 228, 232, 236, 238, 241, 244, 246, 248, 249],
+  },
+  {
+    name: "Recess Riot",
+    description: "Maximum energy! Dancing, singing, jumping, running -- the wildest, most physical challenges for kids who need to move!",
+    audience: "classroom",
+    icon: "rocket",
+    color: "#FF4757",
+    challengeIndices: [250, 251, 253, 255, 258, 259, 262, 267, 272, 277, 279, 289],
   },
 ];
 
@@ -743,6 +1456,14 @@ const BADGES = [
 async function seed() {
   console.log("Seeding database...");
 
+  // --- 0. Clear existing seed data ---
+  console.log("Clearing existing data...");
+  await db.delete(packChallenges);
+  await db.delete(challengePacks);
+  await db.delete(badges);
+  await db.execute(rawSql`DELETE FROM challenge_templates WHERE is_system = true`);
+  console.log("Cleared.");
+
   // --- 1. Insert challenge templates ---
   console.log(`Inserting ${CHALLENGES.length} challenge templates...`);
 
@@ -780,6 +1501,34 @@ async function seed() {
   }
 
   console.log(`Inserted ${insertedChallenges.length} challenges.`);
+
+  // --- 1b. Insert interactive challenge templates ---
+  console.log(`Inserting ${INTERACTIVE_CHALLENGES.length} interactive challenges...`);
+
+  const interactiveValues = INTERACTIVE_CHALLENGES.map((c) => ({
+    title: c.title,
+    shortDescription: c.instructions.slice(0, 120) + (c.instructions.length > 120 ? "..." : ""),
+    fullInstructions: c.instructions,
+    audience: c.audience,
+    audiencePack: c.audiencePack,
+    category: c.category,
+    intensityTone: c.intensity,
+    durationSeconds: dur(c.duration),
+    movementLevel: mov(c.movement),
+    noiseLevel: noi(c.noise),
+    submissionType: c.submission,
+    scoringType: scoringType(c.submission),
+    safetyFlags: [],
+    isSystem: true,
+    interactiveData: c.interactiveData,
+  }));
+
+  const insertedInteractive = await db
+    .insert(challengeTemplates)
+    .values(interactiveValues)
+    .returning({ id: challengeTemplates.id });
+
+  console.log(`Inserted ${insertedInteractive.length} interactive challenges.`);
 
   // --- 2. Insert challenge packs ---
   console.log(`Inserting ${PACKS.length} challenge packs...`);

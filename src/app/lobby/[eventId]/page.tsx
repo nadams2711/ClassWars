@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGameState } from "@/hooks/useGameState";
-import { AvatarPicker, AVATAR_COLORS } from "@/components/game/AvatarPicker";
+import { AvatarPicker } from "@/components/game/AvatarPicker";
+import { PixelAvatar, getAvatarColor } from "@/components/game/PixelAvatar";
 import { RetroButton } from "@/components/ui/RetroButton";
 import { RetroCard } from "@/components/ui/RetroCard";
 import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
@@ -54,22 +55,35 @@ export default function LobbyPage() {
     }
   }, [eventId]);
 
-  // Fetch event details
+  // Fetch event details and check if game already started
   useEffect(() => {
     if (!eventId) return;
     async function fetchEvent() {
       try {
-        const res = await fetch(`/api/events/${eventId}`);
+        const res = await fetch(`/api/events/${eventId}/state`);
         if (res.ok) {
           const data = await res.json();
-          setEventName(data.name || "ClassWars");
-          setJoinCode(data.joinCode || "");
-          setTeamMode(data.teamMode || false);
-          if (data.teams) setTeams(data.teams);
-          if (data.avatarIndex != null) setAvatarIndex(data.avatarIndex);
+          // If the game is already active/started, redirect to play
+          if (data.phase !== "LOBBY") {
+            router.push(`/play/${eventId}`);
+            return;
+          }
+          if (data.participants?.length) {
+            game.setParticipants(data.participants);
+          }
+        }
+
+        // Also fetch event metadata
+        const eventRes = await fetch(`/api/events/${eventId}`);
+        if (eventRes.ok) {
+          const eventData = await eventRes.json();
+          setEventName(eventData.name || "Bored Games");
+          setJoinCode(eventData.joinCode || "");
+          setTeamMode(eventData.teamMode || false);
+          if (eventData.teams) setTeams(eventData.teams);
         }
       } catch {
-        // Event info is non-critical; continue with defaults
+        // Non-critical; continue with defaults
       }
     }
     fetchEvent();
@@ -155,7 +169,7 @@ export default function LobbyPage() {
 
   const nickname = stored?.nickname || "Player";
   const participantsList = game.participants || [];
-  const selectedColor = AVATAR_COLORS[avatarIndex % AVATAR_COLORS.length];
+  const selectedColor = getAvatarColor(avatarIndex);
 
   return (
     <div className="min-h-screen flex flex-col items-center px-4 py-6 sm:py-10 relative">
@@ -174,7 +188,7 @@ export default function LobbyPage() {
               "0 0 8px rgba(168,85,247,0.5), 0 0 16px rgba(168,85,247,0.25)",
           }}
         >
-          {eventName || "CLASSWARS"}
+          {eventName || "BORED GAMES"}
         </h1>
         <p className="font-retro text-[10px] text-retro-muted uppercase tracking-wider">
           Waiting Room
@@ -192,14 +206,14 @@ export default function LobbyPage() {
             <p className="font-retro text-[9px] text-retro-muted uppercase tracking-wider mb-2">
               Share Code
             </p>
-            <div className="flex justify-center gap-2">
+            <div className="flex justify-center gap-1 sm:gap-2">
               {(joinCode || "------").split("").map((char, i) => (
                 <div
                   key={i}
-                  className="w-10 h-12 sm:w-12 sm:h-14 bg-page border-2 border-retro-blue/40 flex items-center justify-center"
+                  className="w-8 h-10 sm:w-10 sm:h-12 bg-page border-2 border-retro-blue/40 flex items-center justify-center"
                 >
                   <span
-                    className="font-retro text-xl sm:text-2xl text-retro-blue"
+                    className="font-retro text-base sm:text-xl text-retro-blue"
                     style={{
                       textShadow: "0 0 8px rgba(0,212,255,0.4)",
                     }}
@@ -223,15 +237,13 @@ export default function LobbyPage() {
               {/* Nickname display */}
               <div className="flex items-center gap-3">
                 <div
-                  className="w-12 h-12 flex items-center justify-center shrink-0"
+                  className="p-1 shrink-0"
                   style={{
-                    backgroundColor: selectedColor,
+                    border: `2px solid ${selectedColor}`,
                     boxShadow: `0 0 16px ${selectedColor}60`,
                   }}
                 >
-                  <span className="font-retro text-lg text-white">
-                    {nickname.charAt(0).toUpperCase()}
-                  </span>
+                  <PixelAvatar avatarIndex={avatarIndex} size="lg" />
                 </div>
                 <div>
                   <p className="font-retro text-xs text-retro-text">
@@ -247,7 +259,6 @@ export default function LobbyPage() {
               <AvatarPicker
                 selectedIndex={avatarIndex}
                 onSelect={handleAvatarSelect}
-                nickname={nickname}
               />
 
               {/* Team Selector */}
@@ -322,8 +333,6 @@ export default function LobbyPage() {
             <div className="divide-y divide-retro-purple/10 max-h-64 overflow-y-auto">
               <AnimatePresence mode="popLayout">
                 {participantsList.map((p, i) => {
-                  const pColor =
-                    AVATAR_COLORS[p.avatarIndex % AVATAR_COLORS.length];
                   const isMe = p.id === stored?.participantId;
                   return (
                     <motion.div
@@ -339,14 +348,7 @@ export default function LobbyPage() {
                       )}
                     >
                       {/* Avatar */}
-                      <div
-                        className="w-7 h-7 flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: pColor }}
-                      >
-                        <span className="font-retro text-[9px] text-white">
-                          {p.nickname.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
+                      <PixelAvatar avatarIndex={p.avatarIndex} size="sm" />
 
                       {/* Name */}
                       <span

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { RetroCard } from "@/components/ui/RetroCard";
 import { RetroInput } from "@/components/ui/RetroInput";
+import { RetroButton } from "@/components/ui/RetroButton";
 import type { ChallengeTemplate } from "@/types/challenge";
 
 interface ChallengeLibraryProps {
@@ -12,6 +13,7 @@ interface ChallengeLibraryProps {
   onToggleSelect?: (id: string) => void;
   selectable?: boolean;
   filters?: boolean;
+  eventLocation?: string;
 }
 
 const PACK_OPTIONS = [
@@ -21,17 +23,28 @@ const PACK_OPTIONS = [
   { value: "office_fun", label: "Friday Fun" },
   { value: "office_professional", label: "Workshop Boost" },
   { value: "universal", label: "Universal Hype" },
+  { value: "recess_riot", label: "Recess Riot" },
 ];
 
+// Categories matching the actual seed data values
 const CATEGORY_OPTIONS = [
   { value: "", label: "All Categories" },
-  { value: "improv", label: "Improv" },
-  { value: "performance", label: "Performance" },
-  { value: "creativity", label: "Creativity" },
-  { value: "trivia", label: "Trivia" },
-  { value: "physical", label: "Physical" },
-  { value: "social", label: "Social" },
-  { value: "strategy", label: "Strategy" },
+  { value: "Improv", label: "Improv" },
+  { value: "Performance", label: "Performance" },
+  { value: "Creativity", label: "Creativity" },
+  { value: "Social courage", label: "Social Courage" },
+  { value: "Teamwork", label: "Teamwork" },
+  { value: "Observation", label: "Observation" },
+  { value: "Gesture", label: "Gesture" },
+  { value: "Quiet creativity", label: "Quiet Creativity" },
+  { value: "Memory", label: "Memory" },
+  { value: "Communication", label: "Communication" },
+  { value: "Leadership", label: "Leadership" },
+  { value: "Innovation", label: "Innovation" },
+  { value: "Problem-solving", label: "Problem Solving" },
+  { value: "Culture", label: "Culture" },
+  { value: "Recognition", label: "Recognition" },
+  { value: "Presentation", label: "Presentation" },
 ];
 
 const INTENSITY_OPTIONS = [
@@ -56,6 +69,29 @@ const NOISE_OPTIONS = [
   { value: "loud", label: "Loud" },
 ];
 
+const LOCATION_FILTER_OPTIONS = [
+  { value: "", label: "All Locations" },
+  { value: "classroom", label: "Classroom" },
+  { value: "park", label: "Park" },
+  { value: "restaurant", label: "Restaurant" },
+  { value: "home", label: "Home" },
+  { value: "beach", label: "Beach" },
+  { value: "office", label: "Office" },
+];
+
+const INTERACTIVE_FILTER_OPTIONS = [
+  { value: "", label: "All Types" },
+  { value: "interactive", label: "Interactive Only" },
+  { value: "standard", label: "Standard Only" },
+];
+
+const AUDIENCE_OPTIONS = [
+  { value: "", label: "All Audiences" },
+  { value: "classroom", label: "Classroom (Kids)" },
+  { value: "office", label: "Office (Adults)" },
+  { value: "universal", label: "Universal" },
+];
+
 const intensityColors: Record<string, string> = {
   mild: "bg-retro-blue/20 text-retro-blue border-retro-blue/40",
   bold: "bg-retro-purple/20 text-retro-purple-light border-retro-purple/40",
@@ -77,6 +113,18 @@ const noiseIcons: Record<string, string> = {
   medium: "\u{1F5E3}",
   loud: "\u{1F4E2}",
 };
+
+// Location constraints: what movement/noise levels are appropriate per location
+const LOCATION_CONSTRAINTS: Record<string, { movement: string[]; noise: string[] }> = {
+  classroom: { movement: ["seated", "standing"], noise: ["quiet", "medium"] },
+  park: { movement: ["seated", "standing", "light_movement"], noise: ["quiet", "medium", "loud"] },
+  restaurant: { movement: ["seated"], noise: ["quiet", "medium"] },
+  home: { movement: ["seated", "standing", "light_movement"], noise: ["quiet", "medium"] },
+  beach: { movement: ["seated", "standing", "light_movement"], noise: ["quiet", "medium", "loud"] },
+  office: { movement: ["seated", "standing"], noise: ["quiet", "medium"] },
+};
+
+const PAGE_SIZE = 24;
 
 function FilterSelect({
   label,
@@ -111,6 +159,7 @@ export function ChallengeLibrary({
   onToggleSelect,
   selectable = false,
   filters = true,
+  eventLocation,
 }: ChallengeLibraryProps) {
   const [search, setSearch] = useState("");
   const [packFilter, setPackFilter] = useState("");
@@ -118,6 +167,10 @@ export function ChallengeLibrary({
   const [intensityFilter, setIntensityFilter] = useState("");
   const [movementFilter, setMovementFilter] = useState("");
   const [noiseFilter, setNoiseFilter] = useState("");
+  const [audienceFilter, setAudienceFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState(eventLocation || "");
+  const [interactiveFilter, setInteractiveFilter] = useState("");
+  const [page, setPage] = useState(0);
 
   const filtered = useMemo(() => {
     return challenges.filter((c) => {
@@ -127,9 +180,36 @@ export function ChallengeLibrary({
       if (intensityFilter && c.intensityTone !== intensityFilter) return false;
       if (movementFilter && c.movementLevel !== movementFilter) return false;
       if (noiseFilter && c.noiseLevel !== noiseFilter) return false;
+      if (audienceFilter && c.audience !== audienceFilter) return false;
+      if (interactiveFilter === "interactive" && !c.interactiveData) return false;
+      if (interactiveFilter === "standard" && c.interactiveData) return false;
+      if (locationFilter) {
+        // If challenge is explicitly tagged for a location, check it matches
+        const iData = c.interactiveData as Record<string, unknown> | null | undefined;
+        if (iData && Array.isArray(iData.locations) && iData.locations.length > 0) {
+          if (!iData.locations.includes(locationFilter) && !iData.locations.includes("anywhere")) {
+            return false;
+          }
+        } else {
+          // For challenges without explicit location tags, filter by movement/noise constraints
+          const constraints = LOCATION_CONSTRAINTS[locationFilter];
+          if (constraints) {
+            if (!constraints.movement.includes(c.movementLevel)) return false;
+            if (!constraints.noise.includes(c.noiseLevel)) return false;
+          }
+        }
+      }
       return true;
     });
-  }, [challenges, search, packFilter, categoryFilter, intensityFilter, movementFilter, noiseFilter]);
+  }, [challenges, search, packFilter, categoryFilter, intensityFilter, movementFilter, noiseFilter, audienceFilter, locationFilter, interactiveFilter]);
+
+  // Reset to first page whenever any filter changes
+  useEffect(() => {
+    setPage(0);
+  }, [search, packFilter, categoryFilter, intensityFilter, movementFilter, noiseFilter, audienceFilter, locationFilter, interactiveFilter]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const pageItems = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -146,6 +226,12 @@ export function ChallengeLibrary({
       {/* Filters */}
       {filters && (
         <div className="flex flex-wrap gap-2">
+          <FilterSelect
+            label="Audience"
+            value={audienceFilter}
+            options={AUDIENCE_OPTIONS}
+            onChange={setAudienceFilter}
+          />
           <FilterSelect
             label="Pack"
             value={packFilter}
@@ -176,18 +262,35 @@ export function ChallengeLibrary({
             options={NOISE_OPTIONS}
             onChange={setNoiseFilter}
           />
+          <FilterSelect
+            label="Location"
+            value={locationFilter}
+            options={LOCATION_FILTER_OPTIONS}
+            onChange={setLocationFilter}
+          />
+          <FilterSelect
+            label="Type"
+            value={interactiveFilter}
+            options={INTERACTIVE_FILTER_OPTIONS}
+            onChange={setInteractiveFilter}
+          />
         </div>
       )}
 
-      {/* Selection count */}
-      {selectable && (
-        <div className="font-retro text-[10px] text-retro-purple-light">
-          {selectedIds.length} CHALLENGE{selectedIds.length !== 1 ? "S" : ""} SELECTED
+      {/* Selection count + result count */}
+      <div className="flex items-center justify-between">
+        {selectable && (
+          <div className="font-retro text-[10px] text-retro-purple-light">
+            {selectedIds.length} CHALLENGE{selectedIds.length !== 1 ? "S" : ""} SELECTED
+          </div>
+        )}
+        <div className="font-retro text-[10px] text-retro-muted">
+          {filtered.length} RESULT{filtered.length !== 1 ? "S" : ""}
         </div>
-      )}
+      </div>
 
       {/* Challenge grid */}
-      {filtered.length === 0 ? (
+      {pageItems.length === 0 ? (
         <div className="text-center py-12">
           <p className="font-retro text-xs text-retro-muted">NO CHALLENGES FOUND</p>
           <p className="font-body text-sm text-retro-muted/60 mt-2">
@@ -196,7 +299,7 @@ export function ChallengeLibrary({
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((challenge) => {
+          {pageItems.map((challenge) => {
             const isSelected = selectedIds.includes(challenge.id);
             const intensity = intensityColors[challenge.intensityTone] || intensityColors.balanced;
 
@@ -257,8 +360,8 @@ export function ChallengeLibrary({
                     </span>
                   </div>
 
-                  {/* Category + intensity tag */}
-                  <div className="flex items-center gap-1.5">
+                  {/* Category + intensity + audience tags */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-retro text-[7px] px-1.5 py-0.5 bg-retro-purple/10 text-retro-purple-light border border-retro-purple/30 capitalize">
                       {challenge.category}
                     </span>
@@ -270,11 +373,44 @@ export function ChallengeLibrary({
                     >
                       {challenge.intensityTone}
                     </span>
+                    <span className="font-retro text-[7px] px-1.5 py-0.5 bg-retro-green/10 text-retro-green border border-retro-green/30 capitalize">
+                      {challenge.audience}
+                    </span>
+                    {challenge.interactiveData && (
+                      <span className="font-retro text-[7px] px-1.5 py-0.5 bg-retro-pink/10 text-retro-pink border border-retro-pink/30 uppercase">
+                        {challenge.interactiveData.type.replace(/_/g, " ")}
+                      </span>
+                    )}
                   </div>
                 </div>
               </RetroCard>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <RetroButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            PREV
+          </RetroButton>
+          <span className="font-retro text-[10px] text-retro-muted tabular-nums">
+            {page + 1} / {totalPages}
+          </span>
+          <RetroButton
+            variant="secondary"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+          >
+            NEXT
+          </RetroButton>
         </div>
       )}
     </div>

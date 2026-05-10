@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useMemo } from "react";
+import { PIXEL_AVATAR_COLORS } from "./PixelAvatar";
 import { cn } from "@/lib/utils";
 
 interface BracketMatch {
@@ -22,12 +23,7 @@ interface TournamentBracketProps {
   className?: string;
 }
 
-const AVATAR_COLORS = [
-  "#FF2D78", "#00D4FF", "#39FF14", "#FFD700", "#A855F7", "#FF6B35",
-  "#00FF88", "#FF1493", "#4169E1", "#FF4500", "#00CED1", "#FF69B4",
-  "#7B68EE", "#32CD32", "#FF8C00", "#1E90FF", "#DC143C", "#00FA9A",
-  "#FF1744", "#00E5FF", "#76FF03", "#FFEA00", "#AA00FF", "#FF3D00",
-];
+const AVATAR_COLORS = PIXEL_AVATAR_COLORS;
 
 function PlayerSlot({
   playerId,

@@ -16,7 +16,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ClassWars - Battle Your Classmates!",
+  title: "Bored Games - Battle Your Classmates!",
   description:
     "A retro 16-bit competitive challenge game for classrooms and offices",
 };

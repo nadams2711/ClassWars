@@ -9,6 +9,7 @@ import {
 import { eq, and, asc } from "drizzle-orm";
 import { pusherServer } from "@/lib/pusher/server";
 import { auth } from "@/lib/auth";
+import { calculateTeamLeaderboard } from "@/lib/game/scoring";
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,19 +59,33 @@ export async function POST(req: NextRequest) {
       // Build final results sorted by score
       const finalParticipants = await db.query.participants.findMany({
         where: eq(participants.eventId, eventId),
+        with: { team: true },
       });
+
+      const scoresMap: Record<string, number> = {};
+      const participantTeams: Record<string, { teamId: string; name: string; color: string }> = {};
 
       const finalResults = finalParticipants
         .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-        .map((p, i) => ({
-          participantId: p.id,
-          nickname: p.nickname,
-          avatarIndex: p.avatarIndex,
-          score: p.score,
-          rank: i + 1,
-          previousRank: null,
-          teamName: null,
-        }));
+        .map((p, i) => {
+          scoresMap[p.id] = p.score ?? 0;
+          if (p.team) {
+            participantTeams[p.id] = { teamId: p.team.id, name: p.team.name, color: p.team.color || "#888" };
+          }
+          return {
+            participantId: p.id,
+            nickname: p.nickname,
+            avatarIndex: p.avatarIndex,
+            score: p.score,
+            rank: i + 1,
+            previousRank: null,
+            teamName: p.team?.name || null,
+          };
+        });
+
+      const teamLeaderboard = event.teamMode
+        ? calculateTeamLeaderboard(scoresMap, participantTeams)
+        : [];
 
       // Broadcast final results phase
       await pusherServer.trigger(`presence-event-${eventId}`, "game-state", {
@@ -81,9 +96,10 @@ export async function POST(req: NextRequest) {
 
       await pusherServer.trigger(`presence-event-${eventId}`, "game-ended", {
         finalResults,
+        teamLeaderboard,
       });
 
-      return NextResponse.json({ gameOver: true, finalResults });
+      return NextResponse.json({ gameOver: true, finalResults, teamLeaderboard });
     }
 
     // Advance to next challenge
@@ -112,15 +128,43 @@ export async function POST(req: NextRequest) {
       })
       .where(eq(eventChallenges.id, nextEC.id));
 
-    // Timer: challenge duration + 4 seconds for countdown overlay
+    // Timer: challenge duration + 4s countdown + 3.5s VS screen
     const durationSeconds = template?.durationSeconds || 60;
+    const vsDelay = 3500;
     const timerEnd = new Date(
-      Date.now() + durationSeconds * 1000 + 4000
+      Date.now() + durationSeconds * 1000 + 4000 + vsDelay
     ).toISOString();
 
-    // Broadcast COUNTDOWN phase for next round
+    // Auto-fire VS screen before countdown
+    const eventParticipants = await db.query.participants.findMany({
+      where: eq(participants.eventId, eventId),
+    });
+
+    if (eventParticipants.length >= 2) {
+      const shuffled = eventParticipants.sort(() => Math.random() - 0.5);
+      const p1 = shuffled[0];
+      const p2 = shuffled[1];
+
+      await pusherServer.trigger(`presence-event-${eventId}`, "vs-screen", {
+        player1: {
+          id: p1.id,
+          nickname: p1.nickname,
+          avatarIndex: p1.avatarIndex ?? 0,
+          score: p1.score ?? 0,
+        },
+        player2: {
+          id: p2.id,
+          nickname: p2.nickname,
+          avatarIndex: p2.avatarIndex ?? 0,
+          score: p2.score ?? 0,
+        },
+        challengeTitle: template?.title || "Challenge",
+      });
+    }
+
+    // Broadcast VS_SCREEN or COUNTDOWN phase for next round
     await pusherServer.trigger(`presence-event-${eventId}`, "game-state", {
-      phase: "COUNTDOWN",
+      phase: eventParticipants.length >= 2 ? "VS_SCREEN" : "COUNTDOWN",
       round: nextRound,
       totalRounds: allChallenges.length,
       challengeId: nextEC.id,

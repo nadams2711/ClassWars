@@ -32,6 +32,24 @@ export default function ControlPage() {
 
   const gameState = useGameState(eventId, true);
 
+  // Periodically check session; redirect to login if expired
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const res = await fetch("/api/auth/session");
+        const data = await res.json();
+        if (!data?.user) {
+          router.push("/auth/login");
+        }
+      } catch {
+        // Network error, skip
+      }
+    };
+    checkSession();
+    const interval = setInterval(checkSession, 30000);
+    return () => clearInterval(interval);
+  }, [router]);
+
   // Fetch event data
   useEffect(() => {
     async function fetchEvent() {
@@ -59,22 +77,45 @@ export default function ControlPage() {
     fetchEvent();
   }, [eventId, router]);
 
-  // Fetch initial participants
+  // Fetch initial game state and participants
   useEffect(() => {
     if (!eventData) return;
 
-    async function fetchParticipants() {
+    async function fetchState() {
       try {
-        const res = await fetch(`/api/events/${eventId}/participants`);
-        if (res.ok) {
-          const data = await res.json();
-          gameState.setParticipants(data);
+        // Fetch current game state
+        const stateRes = await fetch(`/api/events/${eventId}/state`);
+        if (stateRes.ok) {
+          const stateData = await stateRes.json();
+          // Sync phase from server if game is not in lobby
+          if (stateData.phase !== "LOBBY") {
+            gameState.handleGameStateEvent({
+              phase: stateData.phase,
+              round: stateData.currentRound,
+              totalRounds: stateData.totalRounds,
+              challengeId: stateData.currentChallengeId || undefined,
+              challenge: stateData.currentChallenge || undefined,
+              timerEnd: stateData.timerEnd || undefined,
+            });
+          }
+          if (stateData.participants?.length) {
+            gameState.setParticipants(stateData.participants);
+          }
         }
       } catch {
-        // Participants will sync via Pusher
+        // Fall back to just fetching participants
+        try {
+          const res = await fetch(`/api/events/${eventId}/participants`);
+          if (res.ok) {
+            const data = await res.json();
+            gameState.setParticipants(data);
+          }
+        } catch {
+          // Participants will sync via Pusher
+        }
       }
     }
-    fetchParticipants();
+    fetchState();
   }, [eventData, eventId]);
 
   const handleCopyCode = async () => {
@@ -177,14 +218,14 @@ export default function ControlPage() {
             <RetroCard glow="blue" padding="lg">
               <div className="text-center space-y-4">
                 <p className="font-retro text-[8px] text-retro-muted uppercase tracking-widest">
-                  Go to classwars.app and enter:
+                  Go to boredgames.app and enter:
                 </p>
 
-                <div className="relative">
+                <div className="relative overflow-hidden">
                   {/* Decorative border */}
                   <div className="absolute inset-0 border-2 border-dashed border-retro-blue/20" />
-                  <div className="py-6 px-4">
-                    <div className="font-retro text-4xl md:text-5xl text-retro-blue tracking-[0.4em] drop-shadow-[0_0_20px_rgba(0,212,255,0.5)]">
+                  <div className="py-6 px-2">
+                    <div className="font-retro text-2xl sm:text-3xl md:text-4xl text-retro-blue tracking-[0.2em] sm:tracking-[0.3em] drop-shadow-[0_0_20px_rgba(0,212,255,0.5)]">
                       {eventData.joinCode}
                     </div>
                   </div>

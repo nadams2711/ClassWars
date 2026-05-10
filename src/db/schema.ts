@@ -139,6 +139,7 @@ export const challengeTemplates = pgTable("challenge_templates", {
   scoringType: text("scoring_type").default("completion"),
   safetyFlags: jsonb("safety_flags").default([]),
   isSystem: boolean("is_system").default(true),
+  interactiveData: jsonb("interactive_data"),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
   }),

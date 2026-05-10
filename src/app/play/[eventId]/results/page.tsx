@@ -11,6 +11,7 @@ import { RetroCard } from "@/components/ui/RetroCard";
 import { ParticleExplosion } from "@/components/ui/ParticleExplosion";
 import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { motion, AnimatePresence } from "framer-motion";
+import { PIXEL_AVATAR_COLORS } from "@/components/game/PixelAvatar";
 import { cn } from "@/lib/utils";
 
 interface StoredParticipant {
@@ -26,12 +27,7 @@ interface Badge {
   icon: string;
 }
 
-const AVATAR_COLORS = [
-  "#FF2D78", "#00D4FF", "#39FF14", "#FFD700", "#A855F7", "#FF6B35",
-  "#00FF88", "#FF1493", "#4169E1", "#FF4500", "#00CED1", "#FF69B4",
-  "#7B68EE", "#32CD32", "#FF8C00", "#1E90FF", "#DC143C", "#00FA9A",
-  "#FF1744", "#00E5FF", "#76FF03", "#FFEA00", "#AA00FF", "#FF3D00",
-];
+const AVATAR_COLORS = PIXEL_AVATAR_COLORS;
 
 export default function ResultsPage() {
   const params = useParams();
@@ -289,6 +285,93 @@ export default function ResultsPage() {
                 </motion.div>
               )}
 
+              {/* Winning Team */}
+              {game.teamLeaderboard.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <RetroCard glow="gold" padding="md" className="text-center">
+                    <h3
+                      className="font-retro text-[10px] text-retro-gold uppercase tracking-wider mb-3"
+                      style={{ textShadow: "0 0 8px rgba(255,215,0,0.4)" }}
+                    >
+                      Winning Team
+                    </h3>
+                    {(() => {
+                      const winner = [...game.teamLeaderboard].sort((a, b) => a.rank - b.rank)[0];
+                      if (!winner) return null;
+                      return (
+                        <div className="flex flex-col items-center gap-2">
+                          <div
+                            className="w-12 h-12 flex items-center justify-center border-2"
+                            style={{
+                              backgroundColor: `${winner.color}30`,
+                              borderColor: winner.color,
+                              boxShadow: `0 0 20px ${winner.color}40`,
+                            }}
+                          >
+                            <span
+                              className="font-retro text-lg"
+                              style={{ color: winner.color }}
+                            >
+                              {winner.name.charAt(0)}
+                            </span>
+                          </div>
+                          <p
+                            className="font-retro text-sm uppercase"
+                            style={{ color: winner.color }}
+                          >
+                            {winner.name}
+                          </p>
+                          <p className="font-retro text-lg text-retro-gold">
+                            {winner.score} pts
+                          </p>
+                        </div>
+                      );
+                    })()}
+                    {/* All teams */}
+                    <div className="mt-4 space-y-2">
+                      {[...game.teamLeaderboard]
+                        .sort((a, b) => a.rank - b.rank)
+                        .map((team) => {
+                          const maxScore = Math.max(...game.teamLeaderboard.map(t => t.score), 1);
+                          return (
+                            <div key={team.teamId} className="flex items-center gap-2">
+                              <span className="font-retro text-[9px] text-retro-muted w-5">
+                                #{team.rank}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span
+                                    className="font-retro text-[9px] uppercase"
+                                    style={{ color: team.color }}
+                                  >
+                                    {team.name}
+                                  </span>
+                                  <span className="font-retro text-[9px] text-retro-text tabular-nums">
+                                    {team.score}
+                                  </span>
+                                </div>
+                                <div className="h-1.5 bg-page/60 overflow-hidden">
+                                  <div
+                                    className="h-full transition-all duration-500"
+                                    style={{
+                                      backgroundColor: team.color,
+                                      width: `${(team.score / maxScore) * 100}%`,
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </RetroCard>
+                </motion.div>
+              )}
+
               {/* Full Leaderboard */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -298,6 +381,7 @@ export default function ResultsPage() {
                 <Leaderboard
                   entries={sortedLeaderboard}
                   myParticipantId={stored?.participantId}
+                  teamLeaderboard={game.teamLeaderboard}
                 />
               </motion.div>
 
@@ -314,7 +398,7 @@ export default function ResultsPage() {
                   fullWidth
                   onClick={() => router.push("/join")}
                 >
-                  PLAY AGAIN
+                  JOIN NEW GAME
                 </RetroButton>
                 <RetroButton
                   variant="secondary"
