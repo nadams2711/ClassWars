@@ -17,7 +17,7 @@ export function AnimatedTitle() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.8, ease: "easeOut" }}
       >
-        BATTLE YOUR CLASSMATES
+        FUN ANYWHERE, ANYTIME
       </motion.p>
 
       {/* Inline keyframes for the title glow animation */}
