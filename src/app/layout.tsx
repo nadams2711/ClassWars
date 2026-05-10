@@ -16,7 +16,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Bored Games - Battle Your Classmates!",
+  title: "Dead Time - Time Well Wasted",
   description:
     "A retro 16-bit competitive challenge game for classrooms and offices",
 };
