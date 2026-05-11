@@ -6,6 +6,7 @@ import {
   challengeTemplates,
   participants,
   teams,
+  submissions,
 } from "@/db/schema";
 import { eq, and, asc } from "drizzle-orm";
 
@@ -106,6 +107,50 @@ export async function GET(
       })
     : [];
 
+  // Build turn state if applicable
+  let turnState = null;
+  if (currentChallenge && currentChallengeId && phase === "CHALLENGE_ACTIVE") {
+    const isTurnBased = currentChallenge.submissionType !== "completion_tap";
+
+    if (isTurnBased) {
+      // Query existing submissions for this challenge
+      const challengeSubmissions = await db.query.submissions.findMany({
+        where: eq(submissions.eventChallengeId, currentChallengeId),
+      });
+      const submittedIds = new Set(challengeSubmissions.map((s) => s.participantId));
+
+      // Build turn order from participants who haven't submitted
+      const allIds = eventParticipants.map((p) => p.id);
+      const remaining = allIds.filter((id) => !submittedIds.has(id));
+
+      if (remaining.length > 0) {
+        const currentPlayer = eventParticipants.find((p) => p.id === remaining[0]);
+        // Calculate per-turn timer from template duration
+        const perTurnDuration = currentChallenge.durationSeconds || 60;
+        const turnTimerEnd = new Date(Date.now() + perTurnDuration * 1000).toISOString();
+
+        turnState = {
+          turnBased: true,
+          currentTurnPlayerId: remaining[0],
+          currentTurnNickname: currentPlayer?.nickname || "Player",
+          turnIndex: submittedIds.size,
+          turnOrder: allIds,
+          turnTimerEnd,
+        };
+      } else {
+        // All submitted
+        turnState = {
+          turnBased: true,
+          currentTurnPlayerId: null,
+          currentTurnNickname: null,
+          turnIndex: allIds.length,
+          turnOrder: allIds,
+          turnTimerEnd: null,
+        };
+      }
+    }
+  }
+
   return NextResponse.json({
     phase,
     currentRound: event.currentRound ?? 0,
@@ -117,5 +162,6 @@ export async function GET(
     status: event.status,
     teamMode: event.teamMode || false,
     teams: eventTeams,
+    turnState,
   });
 }

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { submissions, participants, eventChallenges } from "@/db/schema";
+import { submissions, participants, eventChallenges, challengeTemplates, events } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { pusherServer } from "@/lib/pusher/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const { participantId, eventChallengeId, submissionType, textContent, mediaUrl } =
+    const { participantId, eventChallengeId, submissionType, textContent, mediaUrl, turnBased, turnOrder, turnIndex } =
       await req.json();
 
     if (!participantId || !eventChallengeId) {
@@ -90,6 +90,66 @@ export async function POST(req: NextRequest) {
         submissionId: submission.id,
       }
     );
+
+    // Auto-advance turn if turn-based
+    if (turnBased && turnOrder && turnIndex !== undefined) {
+      const nextIndex = turnIndex + 1;
+
+      if (nextIndex >= turnOrder.length) {
+        // Last player — close submissions
+        const event = await db.query.events.findFirst({
+          where: eq(events.id, participant.eventId),
+        });
+
+        await pusherServer.trigger(
+          `presence-event-${participant.eventId}`,
+          "game-state",
+          {
+            phase: "SUBMISSIONS_CLOSED",
+            round: event?.currentRound || 1,
+            totalRounds: event?.totalRounds || 0,
+            turnBased: true,
+            currentTurnPlayerId: null,
+            currentTurnNickname: null,
+            turnIndex: nextIndex,
+            turnOrder,
+            turnTimerEnd: null,
+          }
+        );
+      } else {
+        // Advance to next player
+        const nextPlayerId = turnOrder[nextIndex];
+        const nextPlayer = await db.query.participants.findFirst({
+          where: eq(participants.id, nextPlayerId),
+        });
+
+        // Get per-turn duration from template
+        let perTurnDuration = 60;
+        const template = await db.query.challengeTemplates.findFirst({
+          where: eq(
+            challengeTemplates.id,
+            ec.challengeId
+          ),
+        });
+        if (template) perTurnDuration = template.durationSeconds ?? 60;
+
+        const turnTimerEnd = new Date(
+          Date.now() + perTurnDuration * 1000
+        ).toISOString();
+
+        await pusherServer.trigger(
+          `presence-event-${participant.eventId}`,
+          "turn-advanced",
+          {
+            currentTurnPlayerId: nextPlayerId,
+            currentTurnNickname: nextPlayer?.nickname || "Player",
+            turnIndex: nextIndex,
+            turnOrder,
+            turnTimerEnd,
+          }
+        );
+      }
+    }
 
     return NextResponse.json({
       success: true,

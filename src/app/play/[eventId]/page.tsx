@@ -34,7 +34,14 @@ export default function PlayPage() {
   const [challengePhase, setChallengePhase] = useState<"waiting" | "active" | "submitted">("waiting");
 
   const game = useGameState(eventId);
-  const { secondsLeft, formatted, urgency, isExpired } = useCountdown(game.timerEnd);
+
+  // Turn-based state derivations
+  const isMyTurn = game.turnBased && game.currentTurnPlayerId === stored?.participantId;
+  const isWaiting = game.turnBased && game.currentTurnPlayerId !== stored?.participantId;
+
+  // Use per-turn timer when turn-based, otherwise the global timer
+  const activeTimerEnd = game.turnBased ? game.turnTimerEnd : game.timerEnd;
+  const { secondsLeft, formatted, urgency, isExpired } = useCountdown(activeTimerEnd);
   const { isShaking, shake } = useScreenShake();
   const { play } = useSound();
 
@@ -78,6 +85,11 @@ export default function PlayPage() {
         // Always load participants from server state
         if (data.participants?.length) {
           game.setParticipants(data.participants);
+        }
+
+        // Apply turn state if present
+        if (data.turnState) {
+          game.setTurnState(data.turnState);
         }
 
         // Redirect to results if game is over
@@ -146,6 +158,9 @@ export default function PlayPage() {
             submissionType: game.currentChallenge?.submissionType || "completion_tap",
             textContent: !isDataUrl && value !== "completed" ? value : null,
             mediaUrl: isDataUrl ? value : null,
+            turnBased: game.turnBased,
+            turnOrder: game.turnOrder,
+            turnIndex: game.turnIndex,
           }),
         });
         play("submit_success");
@@ -283,17 +298,61 @@ export default function PlayPage() {
               exit={{ opacity: 0, y: -20 }}
               className="flex flex-col gap-4"
             >
-              <ChallengeCard
-                title={challenge.title}
-                shortDescription={challenge.shortDescription || ""}
-                fullInstructions={challenge.fullInstructions || ""}
-                submissionType={(challenge.submissionType || "completion_tap") as SubmissionType}
-                durationSeconds={challenge.durationSeconds || 60}
-                movementLevel={"seated" as MovementLevel}
-                noiseLevel={"quiet" as NoiseLevel}
-                category=""
-                interactiveData={challenge.interactiveData as InteractiveData | null | undefined}
-              />
+              {/* Turn-based: waiting for another player */}
+              {isWaiting && game.phase === "CHALLENGE_ACTIVE" && (
+                <RetroCard glow="gold" padding="lg" className="text-center">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="space-y-3 py-2"
+                  >
+                    <span className="text-4xl">{"\uD83D\uDC40"}</span>
+                    <h3
+                      className="font-retro text-sm text-retro-gold uppercase"
+                      style={{ textShadow: "0 0 12px rgba(255,215,0,0.5)" }}
+                    >
+                      IT&apos;S {game.currentTurnNickname?.toUpperCase()}&apos;S TURN
+                    </h3>
+                    <p className="font-retro text-[9px] text-retro-muted">
+                      TURN {game.turnIndex + 1} OF {game.turnOrder.length}
+                    </p>
+                    <div className="flex justify-center gap-1.5 mt-2">
+                      <div className="w-1.5 h-1.5 bg-retro-gold animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <div className="w-1.5 h-1.5 bg-retro-gold animate-bounce" style={{ animationDelay: "200ms" }} />
+                      <div className="w-1.5 h-1.5 bg-retro-gold animate-bounce" style={{ animationDelay: "400ms" }} />
+                    </div>
+                  </motion.div>
+                </RetroCard>
+              )}
+
+              {/* Turn-based: your turn banner */}
+              {isMyTurn && game.phase === "CHALLENGE_ACTIVE" && (
+                <div className="text-center">
+                  <motion.span
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="inline-block font-retro text-xs text-retro-green uppercase tracking-widest px-4 py-2 border border-retro-green/40 bg-retro-green/10"
+                    style={{ textShadow: "0 0 8px rgba(57,255,20,0.4)" }}
+                  >
+                    YOUR TURN! ({game.turnIndex + 1}/{game.turnOrder.length})
+                  </motion.span>
+                </div>
+              )}
+
+              {/* Challenge card — dimmed if waiting for another player */}
+              <div className={cn(isWaiting && "opacity-50 pointer-events-none")}>
+                <ChallengeCard
+                  title={challenge.title}
+                  shortDescription={challenge.shortDescription || ""}
+                  fullInstructions={challenge.fullInstructions || ""}
+                  submissionType={(challenge.submissionType || "completion_tap") as SubmissionType}
+                  durationSeconds={challenge.durationSeconds || 60}
+                  movementLevel={"seated" as MovementLevel}
+                  noiseLevel={"quiet" as NoiseLevel}
+                  category=""
+                  interactiveData={challenge.interactiveData as InteractiveData | null | undefined}
+                />
+              </div>
 
               {/* Submission Panel or Time's Up */}
               {game.phase === "SUBMISSIONS_CLOSED" && challengePhase !== "submitted" ? (
@@ -369,7 +428,8 @@ export default function PlayPage() {
                   disabled={
                     game.phase !== "CHALLENGE_ACTIVE" ||
                     game.hasSubmitted ||
-                    isExpired
+                    isExpired ||
+                    isWaiting
                   }
                   participants={game.participants.map((p) => ({
                     id: p.id,

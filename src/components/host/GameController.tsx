@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { formatTimer } from "@/lib/utils";
 import { RetroButton } from "@/components/ui/RetroButton";
@@ -26,7 +26,49 @@ interface GameControllerProps {
     timerEnd: string | null;
     participants: Participant[];
     leaderboard: { participantId: string; nickname: string; score: number; rank: number }[];
+    // Turn-taking fields
+    turnBased: boolean;
+    currentTurnPlayerId: string | null;
+    currentTurnNickname: string | null;
+    turnIndex: number;
+    turnOrder: string[];
+    turnTimerEnd: string | null;
   };
+}
+
+/** Inline sub-component: per-turn countdown timer that fires onExpired once */
+function TurnTimer({ timerEnd, onExpired }: { timerEnd: string | null; onExpired: () => void }) {
+  const { secondsLeft, formatted, urgency } = useCountdown(timerEnd);
+  const firedRef = useRef(false);
+
+  // Reset guard when timerEnd changes (new turn)
+  useEffect(() => {
+    firedRef.current = false;
+  }, [timerEnd]);
+
+  useEffect(() => {
+    if (timerEnd && secondsLeft === 0 && !firedRef.current) {
+      firedRef.current = true;
+      onExpired();
+    }
+  }, [secondsLeft, timerEnd, onExpired]);
+
+  if (!timerEnd) return null;
+
+  return (
+    <span
+      className={cn(
+        "font-retro text-2xl tabular-nums",
+        urgency === "critical"
+          ? "text-retro-pink animate-pulse"
+          : urgency === "warning"
+            ? "text-retro-gold"
+            : "text-retro-green"
+      )}
+    >
+      {formatTimer(Math.max(0, secondsLeft))}
+    </span>
+  );
 }
 
 const phaseConfig: Record<
@@ -249,23 +291,71 @@ export function GameController({ eventId, gameState }: GameControllerProps) {
 
         {/* CHALLENGE_ACTIVE phase */}
         {phase === "CHALLENGE_ACTIVE" && (
-          <div className="flex justify-center gap-3">
-            <RetroButton
-              variant="secondary"
-              size="md"
-              onClick={() => handleAction("pause_game")}
-              disabled={actionLoading === "pause_game"}
-            >
-              {actionLoading === "pause_game" ? "..." : "PAUSE"}
-            </RetroButton>
-            <RetroButton
-              variant="danger"
-              size="md"
-              onClick={() => handleAction("skip_challenge")}
-              disabled={actionLoading === "skip_challenge"}
-            >
-              {actionLoading === "skip_challenge" ? "..." : "SKIP"}
-            </RetroButton>
+          <div className="space-y-4">
+            {/* Turn indicator (turn-based only) */}
+            {gameState.turnBased && gameState.currentTurnPlayerId && (
+              <RetroCard glow="gold" padding="md">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-retro text-[8px] text-retro-muted uppercase tracking-widest mb-1">
+                      CURRENT TURN
+                    </p>
+                    <p
+                      className="font-retro text-sm text-retro-gold"
+                      style={{ textShadow: "0 0 8px rgba(255,215,0,0.4)" }}
+                    >
+                      {gameState.currentTurnNickname}
+                    </p>
+                    <p className="font-retro text-[9px] text-retro-muted mt-1">
+                      Turn {gameState.turnIndex + 1} of {gameState.turnOrder.length}
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <TurnTimer
+                      timerEnd={gameState.turnTimerEnd}
+                      onExpired={() =>
+                        handleAction("advance_turn", {
+                          turnOrder: gameState.turnOrder,
+                          currentTurnIndex: gameState.turnIndex,
+                        })
+                      }
+                    />
+                  </div>
+                  <RetroButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() =>
+                      handleAction("advance_turn", {
+                        turnOrder: gameState.turnOrder,
+                        currentTurnIndex: gameState.turnIndex,
+                      })
+                    }
+                    disabled={actionLoading === "advance_turn"}
+                  >
+                    {actionLoading === "advance_turn" ? "..." : "SKIP TURN"}
+                  </RetroButton>
+                </div>
+              </RetroCard>
+            )}
+
+            <div className="flex justify-center gap-3">
+              <RetroButton
+                variant="secondary"
+                size="md"
+                onClick={() => handleAction("pause_game")}
+                disabled={actionLoading === "pause_game"}
+              >
+                {actionLoading === "pause_game" ? "..." : "PAUSE"}
+              </RetroButton>
+              <RetroButton
+                variant="danger"
+                size="md"
+                onClick={() => handleAction("skip_challenge")}
+                disabled={actionLoading === "skip_challenge"}
+              >
+                {actionLoading === "skip_challenge" ? "..." : "SKIP"}
+              </RetroButton>
+            </div>
           </div>
         )}
 
@@ -467,33 +557,43 @@ export function GameController({ eventId, gameState }: GameControllerProps) {
           PLAYERS ({participants.length})
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
-          {participants.map((p) => (
+          {participants.map((p) => {
+            const isActiveTurn = gameState.turnBased && gameState.currentTurnPlayerId === p.id;
+            return (
             <div
               key={p.id}
               className={cn(
-                "flex items-center gap-2 px-2 py-1.5 bg-elevated border",
-                p.isConnected
-                  ? p.isReady
-                    ? "border-retro-green/30"
-                    : "border-retro-blue/20"
-                  : "border-retro-muted/10 opacity-50"
+                "flex items-center gap-2 px-2 py-1.5 bg-elevated border relative",
+                isActiveTurn
+                  ? "border-retro-gold/60 bg-retro-gold/10"
+                  : p.isConnected
+                    ? p.isReady
+                      ? "border-retro-green/30"
+                      : "border-retro-blue/20"
+                    : "border-retro-muted/10 opacity-50"
               )}
             >
+              {isActiveTurn && (
+                <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-retro-gold rounded-full animate-pulse" />
+              )}
               <div
                 className={cn(
                   "w-2 h-2 rounded-full",
-                  p.isConnected
-                    ? p.isReady
-                      ? "bg-retro-green"
-                      : "bg-retro-blue"
-                    : "bg-retro-muted/30"
+                  isActiveTurn
+                    ? "bg-retro-gold"
+                    : p.isConnected
+                      ? p.isReady
+                        ? "bg-retro-green"
+                        : "bg-retro-blue"
+                      : "bg-retro-muted/30"
                 )}
               />
               <span className="font-body text-xs text-retro-text truncate">
                 {p.nickname}
               </span>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

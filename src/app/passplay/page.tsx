@@ -9,6 +9,8 @@ import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { WinnerPicker } from "@/components/game/WinnerPicker";
 import { PodiumReveal } from "@/components/game/PodiumReveal";
 import { useSound } from "@/hooks/useSound";
+import { useStopwatch } from "@/hooks/useStopwatch";
+import { useCountdown } from "@/hooks/useCountdown";
 import { cn } from "@/lib/utils";
 import type { ChallengeTemplate } from "@/types/challenge";
 import type { ScoringType } from "@/types/game";
@@ -86,6 +88,7 @@ export default function PassPlayPage() {
   const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
   const [roundScores, setRoundScores] = useState<Map<string, number>>(new Map());
   const [showPodium, setShowPodium] = useState(false);
+  const [turnTimerEnd, setTurnTimerEnd] = useState<string | null>(null);
 
   // Load data from sessionStorage
   useEffect(() => {
@@ -115,6 +118,10 @@ export default function PassPlayPage() {
     }
   }, [router]);
 
+  // Timer hooks
+  const stopwatch = useStopwatch(phase === "PLAYER_ACTIVE");
+  const turnCountdown = useCountdown(phase === "PLAYER_ACTIVE" ? turnTimerEnd : null);
+
   const currentChallenge = challenges[currentChallengeIndex] ?? null;
   const currentPlayer = players[currentPlayerIndex] ?? null;
   const scoringType = currentChallenge ? deriveScoringType(currentChallenge) : "completion";
@@ -139,12 +146,15 @@ export default function PassPlayPage() {
 
   const startPlayerActive = useCallback(() => {
     setTurnStartTime(Date.now());
+    const duration = currentChallenge?.durationSeconds || 60;
+    setTurnTimerEnd(new Date(Date.now() + duration * 1000).toISOString());
     setPhase("PLAYER_ACTIVE");
     play("countdown_go");
-  }, [play]);
+  }, [play, currentChallenge]);
 
   const completePlayerTurn = useCallback(() => {
     const elapsed = Date.now() - turnStartTime;
+    setTurnTimerEnd(null);
     setTurnCompletions((prev) => {
       const next = new Map(prev);
       next.set(players[currentPlayerIndex].id, elapsed);
@@ -175,6 +185,18 @@ export default function PassPlayPage() {
       autoScore();
     }
   }, [scoringType, play]);
+
+  // Auto-advance when timer expires
+  const autoAdvanceRef = useRef(false);
+  useEffect(() => {
+    if (turnCountdown.isExpired && phase === "PLAYER_ACTIVE" && !autoAdvanceRef.current) {
+      autoAdvanceRef.current = true;
+      completePlayerTurn();
+    }
+    if (!turnCountdown.isExpired) {
+      autoAdvanceRef.current = false;
+    }
+  }, [turnCountdown.isExpired, phase, completePlayerTurn]);
 
   // ─── Scoring ────────────────────────────────────
 
@@ -462,6 +484,50 @@ export default function PassPlayPage() {
                 <span className="font-retro text-[10px] text-retro-green uppercase tracking-widest">
                   {currentPlayer.name}&apos;S TURN
                 </span>
+              </div>
+
+              {/* Timer bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-retro text-[10px] text-retro-muted tabular-nums">
+                    {stopwatch.formatted}
+                  </span>
+                  <span
+                    className={cn(
+                      "font-retro text-lg tabular-nums transition-colors duration-300",
+                      turnCountdown.urgency === "critical"
+                        ? "text-retro-pink animate-pulse"
+                        : turnCountdown.urgency === "warning"
+                          ? "text-retro-gold"
+                          : "text-retro-green"
+                    )}
+                    style={{
+                      textShadow:
+                        turnCountdown.urgency === "critical"
+                          ? "0 0 8px rgba(255,45,120,0.5)"
+                          : turnCountdown.urgency === "warning"
+                            ? "0 0 8px rgba(255,215,0,0.4)"
+                            : "0 0 8px rgba(57,255,20,0.3)",
+                    }}
+                  >
+                    {turnCountdown.formatted}
+                  </span>
+                </div>
+                <div className="h-1.5 bg-page/60 w-full overflow-hidden">
+                  <motion.div
+                    className={cn(
+                      "h-full transition-colors duration-500",
+                      turnCountdown.urgency === "critical"
+                        ? "bg-retro-pink"
+                        : turnCountdown.urgency === "warning"
+                          ? "bg-retro-gold"
+                          : "bg-retro-green"
+                    )}
+                    style={{
+                      width: `${Math.max(0, (turnCountdown.secondsLeft / (currentChallenge.durationSeconds || 60)) * 100)}%`,
+                    }}
+                  />
+                </div>
               </div>
 
               <RetroCard glow="green" padding="md">

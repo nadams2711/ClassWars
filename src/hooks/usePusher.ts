@@ -15,6 +15,7 @@ interface UsePusherOptions {
   onBracketUpdate?: (data: any) => void;
   onBadgeAwarded?: (data: any) => void;
   onGameEnded?: (data: any) => void;
+  onTurnAdvanced?: (data: any) => void;
 }
 
 export function usePusher(options: UsePusherOptions | null) {
@@ -50,6 +51,7 @@ export function usePusher(options: UsePusherOptions | null) {
       if (options.onBracketUpdate) channel.bind("bracket-update", options.onBracketUpdate);
       if (options.onBadgeAwarded) channel.bind("badge-awarded", options.onBadgeAwarded);
       if (options.onGameEnded) channel.bind("game-ended", options.onGameEnded);
+      if (options.onTurnAdvanced) channel.bind("turn-advanced", options.onTurnAdvanced);
     };
 
     setup();

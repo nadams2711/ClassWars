@@ -57,6 +57,8 @@ export async function POST(
         return await handleNextRound(eventId, event);
       case "show_vs":
         return await handleShowVS(eventId, event);
+      case "advance_turn":
+        return await handleAdvanceTurn(eventId, event, body);
       case "end_game":
         return await handleEndGame(eventId, event);
       default:
@@ -171,6 +173,29 @@ async function handleStartGame(eventId: string, event: EventRow) {
     });
   }
 
+  // Determine turn-based vs simultaneous
+  const isTurnBased = template ? template.submissionType !== "completion_tap" : false;
+  let turnFields: Record<string, unknown> = { turnBased: false };
+
+  if (isTurnBased && eventParticipants.length > 0) {
+    const shuffled = [...eventParticipants].sort(() => Math.random() - 0.5);
+    const turnOrder = shuffled.map((p) => p.id);
+    const firstPlayer = shuffled[0];
+    const perTurnDuration = template?.durationSeconds || 60;
+    const turnTimerEnd = new Date(
+      Date.now() + perTurnDuration * 1000 + 4000 + 3500
+    ).toISOString();
+
+    turnFields = {
+      turnBased: true,
+      currentTurnPlayerId: firstPlayer.id,
+      currentTurnNickname: firstPlayer.nickname,
+      turnIndex: 0,
+      turnOrder,
+      turnTimerEnd,
+    };
+  }
+
   await pusherServer.trigger(`presence-event-${eventId}`, "game-state", {
     phase: eventParticipants.length >= 2 ? "VS_SCREEN" : "COUNTDOWN",
     round: 1,
@@ -188,6 +213,7 @@ async function handleStartGame(eventId: string, event: EventRow) {
         }
       : null,
     timerEnd,
+    ...turnFields,
   });
 
   return NextResponse.json({ success: true, round: 1, timerEnd });
@@ -556,6 +582,29 @@ async function handleNextRound(eventId: string, event: EventRow) {
     });
   }
 
+  // Determine turn-based vs simultaneous
+  const isTurnBased = template ? template.submissionType !== "completion_tap" : false;
+  let turnFields: Record<string, unknown> = { turnBased: false };
+
+  if (isTurnBased && eventParticipants.length > 0) {
+    const shuffledForTurns = [...eventParticipants].sort(() => Math.random() - 0.5);
+    const turnOrder = shuffledForTurns.map((p) => p.id);
+    const firstPlayer = shuffledForTurns[0];
+    const perTurnDuration = template?.durationSeconds || 60;
+    const turnTimerEnd = new Date(
+      Date.now() + perTurnDuration * 1000 + 4000 + 3500
+    ).toISOString();
+
+    turnFields = {
+      turnBased: true,
+      currentTurnPlayerId: firstPlayer.id,
+      currentTurnNickname: firstPlayer.nickname,
+      turnIndex: 0,
+      turnOrder,
+      turnTimerEnd,
+    };
+  }
+
   await pusherServer.trigger(`presence-event-${eventId}`, "game-state", {
     phase: eventParticipants.length >= 2 ? "VS_SCREEN" : "COUNTDOWN",
     round: nextRound,
@@ -573,6 +622,7 @@ async function handleNextRound(eventId: string, event: EventRow) {
         }
       : null,
     timerEnd,
+    ...turnFields,
   });
 
   return NextResponse.json({ success: true, round: nextRound, timerEnd });
@@ -619,6 +669,75 @@ async function handleShowVS(eventId: string, event: EventRow) {
   });
 
   return NextResponse.json({ success: true });
+}
+
+// ─── ADVANCE TURN ─────────────────────────────────
+async function handleAdvanceTurn(
+  eventId: string,
+  event: EventRow,
+  body: { turnOrder?: string[]; currentTurnIndex?: number }
+) {
+  const { turnOrder, currentTurnIndex } = body;
+  if (!turnOrder || currentTurnIndex === undefined) {
+    return NextResponse.json(
+      { error: "Missing turnOrder or currentTurnIndex" },
+      { status: 400 }
+    );
+  }
+
+  const nextIndex = currentTurnIndex + 1;
+
+  if (nextIndex >= turnOrder.length) {
+    // All players done — close submissions
+    await pusherServer.trigger(`presence-event-${eventId}`, "game-state", {
+      phase: "SUBMISSIONS_CLOSED",
+      round: event.currentRound || 1,
+      totalRounds: event.totalRounds || 0,
+      turnBased: true,
+      currentTurnPlayerId: null,
+      currentTurnNickname: null,
+      turnIndex: nextIndex,
+      turnOrder,
+      turnTimerEnd: null,
+    });
+
+    return NextResponse.json({ success: true, done: true });
+  }
+
+  // Find the next player
+  const nextPlayerId = turnOrder[nextIndex];
+  const nextPlayer = await db.query.participants.findFirst({
+    where: eq(participants.id, nextPlayerId),
+  });
+
+  // Look up the active challenge template for per-turn timer
+  let perTurnDuration = 60;
+  const activeEC = await db.query.eventChallenges.findFirst({
+    where: and(
+      eq(eventChallenges.eventId, eventId),
+      eq(eventChallenges.status, "active")
+    ),
+  });
+  if (activeEC) {
+    const template = await db.query.challengeTemplates.findFirst({
+      where: eq(challengeTemplates.id, activeEC.challengeId),
+    });
+    if (template) perTurnDuration = template.durationSeconds ?? 60;
+  }
+
+  const turnTimerEnd = new Date(
+    Date.now() + perTurnDuration * 1000
+  ).toISOString();
+
+  await pusherServer.trigger(`presence-event-${eventId}`, "turn-advanced", {
+    currentTurnPlayerId: nextPlayerId,
+    currentTurnNickname: nextPlayer?.nickname || "Player",
+    turnIndex: nextIndex,
+    turnOrder,
+    turnTimerEnd,
+  });
+
+  return NextResponse.json({ success: true, nextIndex });
 }
 
 // ─── END GAME ────────────────────────────────────

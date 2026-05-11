@@ -73,6 +73,15 @@ export interface TeamLeaderboardEntry {
   memberCount: number;
 }
 
+export interface TurnState {
+  turnBased: boolean;
+  currentTurnPlayerId: string | null;
+  currentTurnNickname: string | null;
+  turnIndex: number;
+  turnOrder: string[];
+  turnTimerEnd: string | null;
+}
+
 export interface ScoreBreakdown {
   completion: number;
   speed: number;

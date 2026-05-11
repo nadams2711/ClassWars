@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { GamePhase, Participant, LeaderboardEntry, VSMatchup, ScoreBreakdown, TeamLeaderboardEntry } from "@/types/game";
+import type { GamePhase, Participant, LeaderboardEntry, VSMatchup, ScoreBreakdown, TeamLeaderboardEntry, TurnState } from "@/types/game";
 
 interface GameStore {
   // State
@@ -28,6 +28,14 @@ interface GameStore {
   hasSubmitted: boolean;
   isHost: boolean;
 
+  // Turn-taking state
+  turnBased: boolean;
+  currentTurnPlayerId: string | null;
+  currentTurnNickname: string | null;
+  turnIndex: number;
+  turnOrder: string[];
+  turnTimerEnd: string | null;
+
   // Actions
   setPhase: (phase: GamePhase) => void;
   setEventId: (eventId: string) => void;
@@ -46,6 +54,7 @@ interface GameStore {
   setVSMatchup: (matchup: VSMatchup | null) => void;
   setHasSubmitted: (submitted: boolean) => void;
   setIsHost: (isHost: boolean) => void;
+  setTurnState: (partial: Partial<TurnState>) => void;
 
   // Game state sync (from Pusher events)
   handleGameStateEvent: (data: {
@@ -55,6 +64,12 @@ interface GameStore {
     challengeId?: string;
     challenge?: GameStore["currentChallenge"];
     timerEnd?: string;
+    turnBased?: boolean;
+    currentTurnPlayerId?: string | null;
+    currentTurnNickname?: string | null;
+    turnIndex?: number;
+    turnOrder?: string[];
+    turnTimerEnd?: string | null;
   }) => void;
   handleScoresUpdate: (data: {
     scores: Record<string, number>;
@@ -83,6 +98,12 @@ const initialState = {
   vsMatchup: null,
   hasSubmitted: false,
   isHost: false,
+  turnBased: false,
+  currentTurnPlayerId: null,
+  currentTurnNickname: null,
+  turnIndex: 0,
+  turnOrder: [],
+  turnTimerEnd: null,
 };
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -111,6 +132,14 @@ export const useGameStore = create<GameStore>((set) => ({
   setVSMatchup: (matchup) => set({ vsMatchup: matchup }),
   setHasSubmitted: (submitted) => set({ hasSubmitted: submitted }),
   setIsHost: (isHost) => set({ isHost }),
+  setTurnState: (partial) => set((state) => ({
+    turnBased: partial.turnBased ?? state.turnBased,
+    currentTurnPlayerId: partial.currentTurnPlayerId !== undefined ? partial.currentTurnPlayerId : state.currentTurnPlayerId,
+    currentTurnNickname: partial.currentTurnNickname !== undefined ? partial.currentTurnNickname : state.currentTurnNickname,
+    turnIndex: partial.turnIndex ?? state.turnIndex,
+    turnOrder: partial.turnOrder ?? state.turnOrder,
+    turnTimerEnd: partial.turnTimerEnd !== undefined ? partial.turnTimerEnd : state.turnTimerEnd,
+  })),
 
   handleGameStateEvent: (data) => set({
     phase: data.phase,
@@ -120,6 +149,12 @@ export const useGameStore = create<GameStore>((set) => ({
     currentChallenge: data.challenge || null,
     timerEnd: data.timerEnd || null,
     hasSubmitted: false,
+    turnBased: data.turnBased ?? false,
+    currentTurnPlayerId: data.currentTurnPlayerId ?? null,
+    currentTurnNickname: data.currentTurnNickname ?? null,
+    turnIndex: data.turnIndex ?? 0,
+    turnOrder: data.turnOrder ?? [],
+    turnTimerEnd: data.turnTimerEnd ?? null,
   }),
   handleScoresUpdate: (data) => set({
     scores: data.scores,

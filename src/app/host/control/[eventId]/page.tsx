@@ -101,6 +101,9 @@ export default function ControlPage() {
           if (stateData.participants?.length) {
             gameState.setParticipants(stateData.participants);
           }
+          if (stateData.turnState) {
+            gameState.setTurnState(stateData.turnState);
+          }
         }
       } catch {
         // Fall back to just fetching participants
@@ -298,6 +301,12 @@ export default function ControlPage() {
                   timerEnd: gameState.timerEnd,
                   participants: gameState.participants,
                   leaderboard: gameState.leaderboard,
+                  turnBased: gameState.turnBased,
+                  currentTurnPlayerId: gameState.currentTurnPlayerId,
+                  currentTurnNickname: gameState.currentTurnNickname,
+                  turnIndex: gameState.turnIndex,
+                  turnOrder: gameState.turnOrder,
+                  turnTimerEnd: gameState.turnTimerEnd,
                 }}
               />
             </RetroCard>

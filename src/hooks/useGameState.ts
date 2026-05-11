@@ -37,6 +37,19 @@ export function useGameState(eventId: string | null, isHost = false) {
       store.setVSMatchup(data);
       play("vs_whoosh");
     },
+    onTurnAdvanced: (data: any) => {
+      store.setTurnState({
+        currentTurnPlayerId: data.currentTurnPlayerId,
+        currentTurnNickname: data.currentTurnNickname,
+        turnIndex: data.turnIndex,
+        turnOrder: data.turnOrder,
+        turnTimerEnd: data.turnTimerEnd,
+      });
+      // Reset submission state if it's now this player's turn
+      if (data.currentTurnPlayerId === store.myParticipantId) {
+        store.setHasSubmitted(false);
+      }
+    },
     onBadgeAwarded: (data: any) => {
       play("badge_unlock");
     },
