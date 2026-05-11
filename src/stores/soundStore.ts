@@ -16,6 +16,6 @@ export const useSoundStore = create<SoundStore>()(
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
       setVolume: (volume) => set({ volume }),
     }),
-    { name: "boredgames-sound" }
+    { name: "deskwars-sound" }
   )
 );

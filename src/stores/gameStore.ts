@@ -14,6 +14,7 @@ interface GameStore {
     fullInstructions: string;
     durationSeconds: number;
     submissionType: string;
+    scoringType?: string;
     interactiveData?: unknown;
   } | null;
   timerEnd: string | null;

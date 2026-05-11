@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     .insert(events)
     .values({
       hostId: session.user.id,
-      name: name || "Dead Time Game",
+      name: name || "Desk Wars Game",
       joinCode,
       status: "lobby",
       mode: mode || "quick_play",

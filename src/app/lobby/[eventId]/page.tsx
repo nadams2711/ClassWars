@@ -38,7 +38,7 @@ export default function LobbyPage() {
   // Load stored participant info from localStorage
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("classwars_participant");
+      const raw = localStorage.getItem("deskwars_participant");
       if (raw) {
         const parsed: StoredParticipant = JSON.parse(raw);
         if (parsed.eventId === eventId) {
@@ -77,7 +77,7 @@ export default function LobbyPage() {
         const eventRes = await fetch(`/api/events/${eventId}`);
         if (eventRes.ok) {
           const eventData = await eventRes.json();
-          setEventName(eventData.name || "Dead Time");
+          setEventName(eventData.name || "Desk Wars");
           setJoinCode(eventData.joinCode || "");
           setTeamMode(eventData.teamMode || false);
           if (eventData.teams) setTeams(eventData.teams);
@@ -188,7 +188,7 @@ export default function LobbyPage() {
               "0 0 8px rgba(168,85,247,0.5), 0 0 16px rgba(168,85,247,0.25)",
           }}
         >
-          {eventName || "DEAD TIME"}
+          {eventName || "DESK WARS"}
         </h1>
         <p className="font-retro text-[10px] text-retro-muted uppercase tracking-wider">
           Waiting Room

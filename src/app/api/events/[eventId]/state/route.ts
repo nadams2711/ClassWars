@@ -68,6 +68,7 @@ export async function GET(
           fullInstructions: template.fullInstructions,
           durationSeconds: template.durationSeconds,
           submissionType: template.submissionType,
+          scoringType: template.scoringType,
           interactiveData: template.interactiveData ?? null,
         };
       }

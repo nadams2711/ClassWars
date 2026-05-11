@@ -1,5 +1,5 @@
 {
-  "name": "dead-time",
+  "name": "desk-wars",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -22,7 +22,6 @@
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.38.0",
-    "howler": "^2.2.4",
     "nanoid": "^5.1.11",
     "next": "16.2.6",
     "next-auth": "^5.0.0-beta.31",
@@ -36,7 +35,6 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
-    "@types/howler": "^2.2.12",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

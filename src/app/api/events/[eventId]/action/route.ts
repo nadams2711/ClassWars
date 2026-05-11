@@ -183,6 +183,7 @@ async function handleStartGame(eventId: string, event: EventRow) {
           fullInstructions: template.fullInstructions,
           durationSeconds: template.durationSeconds,
           submissionType: template.submissionType,
+          scoringType: template.scoringType,
           interactiveData: template.interactiveData ?? null,
         }
       : null,
@@ -567,6 +568,7 @@ async function handleNextRound(eventId: string, event: EventRow) {
           fullInstructions: template.fullInstructions,
           durationSeconds: template.durationSeconds,
           submissionType: template.submissionType,
+          scoringType: template.scoringType,
           interactiveData: template.interactiveData ?? null,
         }
       : null,

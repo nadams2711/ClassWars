@@ -218,7 +218,7 @@ export default function ControlPage() {
             <RetroCard glow="blue" padding="lg">
               <div className="text-center space-y-4">
                 <p className="font-retro text-[8px] text-retro-muted uppercase tracking-widest">
-                  Go to deadtime.app and enter:
+                  Go to deskwars.app and enter:
                 </p>
 
                 <div className="relative overflow-hidden">

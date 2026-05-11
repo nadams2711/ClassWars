@@ -29,7 +29,7 @@ export default function LeaderboardPage() {
   // Load stored participant info
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("classwars_participant");
+      const raw = localStorage.getItem("deskwars_participant");
       if (raw) {
         const parsed: StoredParticipant = JSON.parse(raw);
         if (parsed.eventId === eventId) {

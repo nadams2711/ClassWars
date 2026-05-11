@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { ButtonHTMLAttributes, forwardRef } from "react";
+import { useSound } from "@/hooks/useSound";
 
 type Variant = "primary" | "secondary" | "danger" | "success" | "gold";
 type Size = "sm" | "md" | "lg";
@@ -43,10 +44,10 @@ export const RetroButton = forwardRef<HTMLButtonElement, RetroButtonProps>(
     },
     ref
   ) => {
+    const { play } = useSound();
+
     const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-      // Sound effect integration point:
-      // import { useSound } from "@/hooks/useSound";
-      // playSound("click");
+      play("menu_confirm");
       onClick?.(e);
     };
 

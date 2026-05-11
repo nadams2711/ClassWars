@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useGameState } from "@/hooks/useGameState";
+import { useSound } from "@/hooks/useSound";
 import { useCountdown } from "@/hooks/useCountdown";
 import { useScreenShake } from "@/hooks/useScreenShake";
 import { ChallengeCard } from "@/components/game/ChallengeCard";
@@ -35,11 +36,12 @@ export default function PlayPage() {
   const game = useGameState(eventId);
   const { secondsLeft, formatted, urgency, isExpired } = useCountdown(game.timerEnd);
   const { isShaking, shake } = useScreenShake();
+  const { play } = useSound();
 
   // Load stored participant info
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("classwars_participant");
+      const raw = localStorage.getItem("deskwars_participant");
       if (raw) {
         const parsed: StoredParticipant = JSON.parse(raw);
         if (parsed.eventId === eventId) {
@@ -146,12 +148,13 @@ export default function PlayPage() {
             mediaUrl: isDataUrl ? value : null,
           }),
         });
+        play("submit_success");
       } catch {
         // Submission failed, but we still show submitted state
         // since retrying could cause duplicates
       }
     },
-    [stored, game]
+    [stored, game, play]
   );
 
   // Find my score breakdown and rank from the leaderboard

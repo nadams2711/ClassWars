@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import type { ChallengeTemplate } from "@/types/challenge";
 
 type Audience = "classroom" | "office" | "universal";
-type Mode = "quick_play" | "pack_play" | "tournament";
+type Mode = "quick_play" | "pack_play" | "tournament" | "pass_play";
 type LocationType = "anywhere" | "classroom" | "park" | "restaurant" | "home" | "beach" | "office";
 
 interface PackInfo {
@@ -24,9 +24,9 @@ interface PackInfo {
 }
 
 const AUDIENCE_OPTIONS: { value: Audience; label: string; icon: string }[] = [
-  { value: "classroom", label: "Classroom", icon: "\u{1F3EB}" },
-  { value: "office", label: "Office", icon: "\u{1F3E2}" },
-  { value: "universal", label: "Universal", icon: "\u{1F30D}" },
+  { value: "classroom", label: "Students", icon: "\u{1F393}" },
+  { value: "office", label: "Coworkers", icon: "\u{1F454}" },
+  { value: "universal", label: "Everyone", icon: "\u{1F30D}" },
 ];
 
 const MODE_OPTIONS: { value: Mode; label: string; description: string; icon: string }[] = [
@@ -47,6 +47,12 @@ const MODE_OPTIONS: { value: Mode; label: string; description: string; icon: str
     label: "Tournament",
     description: "Bracket elimination",
     icon: "\u{1F3C6}",
+  },
+  {
+    value: "pass_play",
+    label: "Pass & Play",
+    description: "One phone, pass it around",
+    icon: "\u{1F4F1}",
   },
 ];
 
@@ -109,9 +115,13 @@ export default function CreateEventPage() {
   // Step 3: Launch
   const [maxParticipants, setMaxParticipants] = useState(50);
 
+  // Pass & Play state
+  const [playerNames, setPlayerNames] = useState<string[]>([]);
+  const [newPlayerName, setNewPlayerName] = useState("");
+
   // Fetch challenges when entering step 2 in quick_play or tournament mode
   useEffect(() => {
-    if (step === 2 && (mode === "quick_play" || mode === "tournament")) {
+    if (step === 2 && (mode === "quick_play" || mode === "tournament" || mode === "pass_play")) {
       setLoadingChallenges(true);
       fetch("/api/challenges")
         .then((res) => res.json())
@@ -140,7 +150,7 @@ export default function CreateEventPage() {
     mode === "pack_play"
       ? selectedPackId !== null
       : selectedChallengeIds.length > 0;
-  const canAdvanceStep3 = maxParticipants >= 2;
+  const canAdvanceStep3 = mode === "pass_play" ? playerNames.length >= 2 : maxParticipants >= 2;
 
   const canAdvance =
     step === 1
@@ -152,6 +162,23 @@ export default function CreateEventPage() {
   const handleNext = async () => {
     if (step < 3) {
       setStep(step + 1);
+      return;
+    }
+
+    // Pass & Play: store data locally and navigate (no server event)
+    if (mode === "pass_play") {
+      const selectedTemplates = challenges.filter((c) =>
+        selectedChallengeIds.includes(c.id)
+      );
+      sessionStorage.setItem(
+        "passplay_data",
+        JSON.stringify({
+          playerNames,
+          challenges: selectedTemplates,
+          eventName: eventName.trim(),
+        })
+      );
+      router.push("/passplay");
       return;
     }
 
@@ -270,7 +297,7 @@ export default function CreateEventPage() {
                 <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-3">
                   Game Mode
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {MODE_OPTIONS.map((opt) => (
                     <RetroCard
                       key={opt.value}
@@ -463,8 +490,8 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              {/* Quick Play mode */}
-              {mode === "quick_play" && (
+              {/* Quick Play / Pass & Play mode */}
+              {(mode === "quick_play" || mode === "pass_play") && (
                 <div>
                   <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-4">
                     Pick Your Challenges
@@ -575,7 +602,7 @@ export default function CreateEventPage() {
                       Audience
                     </span>
                     <span className="font-body text-sm text-retro-text capitalize">
-                      {audience}
+                      {AUDIENCE_OPTIONS.find((o) => o.value === audience)?.label ?? audience}
                     </span>
                   </div>
                   <div className="h-px bg-retro-purple/10" />
@@ -623,32 +650,97 @@ export default function CreateEventPage() {
                 </div>
               </RetroCard>
 
-              {/* Max participants */}
-              <div>
-                <RetroInput
-                  label="Max Participants"
-                  type="number"
-                  min={2}
-                  max={200}
-                  value={maxParticipants}
-                  onChange={(e) =>
-                    setMaxParticipants(
-                      Math.max(2, parseInt(e.target.value) || 2)
-                    )
-                  }
-                />
-                <p className="font-body text-xs text-retro-muted/60 mt-1">
-                  Maximum number of players who can join (2-200)
-                </p>
-              </div>
+              {/* Pass & Play: Player name entry */}
+              {mode === "pass_play" ? (
+                <div className="space-y-4">
+                  <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
+                    Add Players (2-12)
+                  </p>
+                  <div className="flex gap-2">
+                    <RetroInput
+                      placeholder="Player name"
+                      value={newPlayerName}
+                      onChange={(e) => setNewPlayerName(e.target.value)}
+                      maxLength={20}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newPlayerName.trim() && playerNames.length < 12) {
+                          setPlayerNames((prev) => [...prev, newPlayerName.trim()]);
+                          setNewPlayerName("");
+                        }
+                      }}
+                    />
+                    <RetroButton
+                      variant="primary"
+                      size="md"
+                      disabled={!newPlayerName.trim() || playerNames.length >= 12}
+                      onClick={() => {
+                        if (newPlayerName.trim() && playerNames.length < 12) {
+                          setPlayerNames((prev) => [...prev, newPlayerName.trim()]);
+                          setNewPlayerName("");
+                        }
+                      }}
+                    >
+                      ADD
+                    </RetroButton>
+                  </div>
+                  {playerNames.length > 0 && (
+                    <div className="space-y-1">
+                      {playerNames.map((name, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between px-3 py-2 bg-elevated border border-retro-purple/20"
+                        >
+                          <span className="font-retro text-[10px] text-retro-text">
+                            {i + 1}. {name}
+                          </span>
+                          <button
+                            onClick={() =>
+                              setPlayerNames((prev) => prev.filter((_, idx) => idx !== i))
+                            }
+                            className="font-retro text-[9px] text-retro-pink hover:text-retro-pink/80"
+                          >
+                            REMOVE
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {playerNames.length < 2 && (
+                    <p className="font-retro text-[9px] text-retro-muted/60">
+                      Need at least 2 players to start
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* Max participants */}
+                  <div>
+                    <RetroInput
+                      label="Max Participants"
+                      type="number"
+                      min={2}
+                      max={200}
+                      value={maxParticipants}
+                      onChange={(e) =>
+                        setMaxParticipants(
+                          Math.max(2, parseInt(e.target.value) || 2)
+                        )
+                      }
+                    />
+                    <p className="font-body text-xs text-retro-muted/60 mt-1">
+                      Maximum number of players who can join (2-200)
+                    </p>
+                  </div>
 
-              {/* Launch info */}
-              <div className="text-center">
-                <p className="font-body text-sm text-retro-muted">
-                  A unique join code will be generated. Share it with your
-                  players to start the battle!
-                </p>
-              </div>
+                  {/* Launch info */}
+                  <div className="text-center">
+                    <p className="font-body text-sm text-retro-muted">
+                      A unique join code will be generated. Share it with your
+                      players to start the battle!
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </EventWizard>

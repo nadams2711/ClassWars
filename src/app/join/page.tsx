@@ -117,7 +117,7 @@ export default function JoinPage() {
 
       // Store participant info in localStorage for the player session
       localStorage.setItem(
-        "classwars_participant",
+        "deskwars_participant",
         JSON.stringify({
           participantId: data.participantId,
           eventId: data.eventId,

@@ -10,7 +10,7 @@ export type GamePhase =
   | "PODIUM";
 
 export type EventStatus = "draft" | "lobby" | "active" | "paused" | "completed";
-export type EventMode = "quick_play" | "pack_play" | "tournament";
+export type EventMode = "quick_play" | "pack_play" | "tournament" | "pass_play";
 export type Audience = "classroom" | "office" | "universal";
 export type SubmissionType = "completion_tap" | "text" | "vote" | "judge" | "photo" | "hybrid";
 export type ScoringType = "completion" | "speed" | "judge" | "vote" | "hybrid";

@@ -8,7 +8,7 @@ export function AnimatedTitle() {
       <h1
         className="font-retro text-4xl sm:text-5xl md:text-7xl text-retro-gold tracking-wider animate-title-glow select-none"
       >
-        DEAD TIME
+        DESK WARS
       </h1>
 
       <motion.p
@@ -17,7 +17,7 @@ export function AnimatedTitle() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.8, ease: "easeOut" }}
       >
-        TIME WELL WASTED
+        YOUR DESK. YOUR ARENA.
       </motion.p>
 
       {/* Inline keyframes for the title glow animation */}

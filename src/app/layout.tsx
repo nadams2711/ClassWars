@@ -16,9 +16,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Dead Time - Time Well Wasted",
+  title: "Desk Wars - Your Desk. Your Arena.",
   description:
-    "A retro 16-bit competitive challenge game for classrooms and offices",
+    "A retro 16-bit competitive challenge game for offices and classrooms",
 };
 
 export const viewport = {

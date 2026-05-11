@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { PIXEL_AVATAR_COLORS } from "./PixelAvatar";
 import { cn } from "@/lib/utils";
+import { useSound } from "@/hooks/useSound";
 
 interface PodiumPlayer {
   nickname: string;
@@ -251,6 +252,7 @@ export function PodiumReveal({
   const [revealedPlaces, setRevealedPlaces] = useState<Set<number>>(new Set());
   const [showConfetti, setShowConfetti] = useState(false);
   const completeCalled = useRef(false);
+  const { play } = useSound();
 
   const handleComplete = useCallback(() => {
     if (!completeCalled.current) {
@@ -262,19 +264,27 @@ export function PodiumReveal({
   useEffect(() => {
     const timers = [
       // 3rd place rises first
-      setTimeout(() => setRevealedPlaces((prev) => new Set([...prev, 3])), 500),
+      setTimeout(() => {
+        setRevealedPlaces((prev) => new Set([...prev, 3]));
+        play("bronze_hit");
+      }, 500),
       // 2nd place
-      setTimeout(() => setRevealedPlaces((prev) => new Set([...prev, 2])), 1800),
+      setTimeout(() => {
+        setRevealedPlaces((prev) => new Set([...prev, 2]));
+        play("silver_fanfare");
+      }, 1800),
       // 1st place with confetti
       setTimeout(() => {
         setRevealedPlaces((prev) => new Set([...prev, 1]));
+        play("victory_fanfare");
         setShowConfetti(true);
+        setTimeout(() => play("confetti_pop"), 300);
       }, 3200),
       // Complete
       setTimeout(() => handleComplete(), 6000),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [handleComplete]);
+  }, [handleComplete, play]);
 
   return (
     <motion.div
