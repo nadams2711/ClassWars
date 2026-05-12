@@ -184,6 +184,38 @@ export default function AdminChallengesPage() {
     window.open("/api/admin/challenges/export", "_blank");
   };
 
+  const handleDownloadTemplate = () => {
+    const template = [
+      {
+        title: "Example Challenge",
+        shortDescription: "A one-line summary shown in previews",
+        fullInstructions: "Detailed rules displayed when the challenge starts.",
+        audience: "universal",
+        audiencePack: "universal",
+        category: "Creativity",
+        intensityTone: "balanced",
+        durationSeconds: 60,
+        movementLevel: "seated",
+        noiseLevel: "quiet",
+        submissionType: "completion_tap",
+        scoringType: "completion",
+        safetyFlags: [],
+        isSystem: false,
+        isSimultaneous: false,
+        interactiveData: null,
+      },
+    ];
+    const blob = new Blob([JSON.stringify(template, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "challenges-template.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const updateField = (field: string, value: unknown) => {
     setEditingChallenge((prev) => (prev ? { ...prev, [field]: value } : null));
   };
@@ -211,6 +243,13 @@ export default function AdminChallengesPage() {
             className="hidden"
             onChange={handleImport}
           />
+          <RetroButton
+            variant="secondary"
+            size="md"
+            onClick={handleDownloadTemplate}
+          >
+            TEMPLATE
+          </RetroButton>
           <RetroButton
             variant="secondary"
             size="md"
