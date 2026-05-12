@@ -165,6 +165,7 @@ export interface ChallengeTemplate {
   safetyFlags: string[];
   isSystem: boolean;
   interactiveData?: InteractiveData | null;
+  isSimultaneous?: boolean;
 }
 
 export interface ChallengePack {

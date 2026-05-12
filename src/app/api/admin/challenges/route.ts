@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
       safetyFlags: body.safetyFlags || [],
       isSystem: body.isSystem ?? false,
       interactiveData: body.interactiveData || null,
+      isSimultaneous: body.isSimultaneous ?? false,
     })
     .returning();
 

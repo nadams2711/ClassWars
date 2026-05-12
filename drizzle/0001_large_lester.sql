@@ -1,0 +1,1 @@
+ALTER TABLE "challenge_templates" ADD COLUMN "is_simultaneous" boolean DEFAULT false;

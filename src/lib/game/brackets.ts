@@ -82,6 +82,7 @@ function propagateByes(matches: BracketMatch[], totalRounds: number) {
     const roundMatches = matches.filter(m => m.roundNumber === round);
     const nextRoundMatches = matches.filter(m => m.roundNumber === round + 1);
 
+    // Propagate winners (real ones) to next round
     roundMatches.forEach((match, idx) => {
       if (match.winnerId) {
         const nextMatchIdx = Math.floor(idx / 2);
@@ -92,13 +93,28 @@ function propagateByes(matches: BracketMatch[], totalRounds: number) {
           } else {
             nextMatch.participant2Id = match.winnerId;
           }
-          // Check if next match is also a bye
-          if (nextMatch.participant1Id && !nextMatch.participant2Id) {
-            // Wait for other match
-          } else if (!nextMatch.participant1Id && nextMatch.participant2Id) {
-            // Wait for other match
-          }
         }
+      }
+    });
+
+    // Auto-resolve next-round matches where both feeders are completed
+    nextRoundMatches.forEach(match => {
+      if (match.status !== "pending") return;
+      const feeder1 = roundMatches[match.matchIndex * 2];
+      const feeder2 = roundMatches[match.matchIndex * 2 + 1];
+      if (!feeder1 || feeder1.status !== "completed") return;
+      if (!feeder2 || feeder2.status !== "completed") return;
+
+      // Both feeders completed — check participants
+      if (match.participant1Id && !match.participant2Id) {
+        match.winnerId = match.participant1Id;
+        match.status = "completed";
+      } else if (!match.participant1Id && match.participant2Id) {
+        match.winnerId = match.participant2Id;
+        match.status = "completed";
+      } else if (!match.participant1Id && !match.participant2Id) {
+        match.winnerId = null;
+        match.status = "completed";
       }
     });
   }

@@ -158,6 +158,7 @@ export default function CreateEventPage() {
   const [customDuration, setCustomDuration] = useState(60);
   const [customCategory, setCustomCategory] = useState("Creativity");
   const [customScoringType, setCustomScoringType] = useState<ScoringType>("completion");
+  const [customIsSimultaneous, setCustomIsSimultaneous] = useState(false);
 
   const nextAvailableAvatar = () => {
     const used = new Set(passPlayPlayers.map((p) => p.avatarIndex));
@@ -213,6 +214,7 @@ export default function CreateEventPage() {
       scoringType: customScoringType,
       safetyFlags: [],
       isSystem: false,
+      isSimultaneous: customIsSimultaneous,
     };
     setCustomChallenges((prev) => [...prev, challenge]);
     setCustomTitle("");
@@ -221,6 +223,7 @@ export default function CreateEventPage() {
     setCustomDuration(60);
     setCustomCategory("Creativity");
     setCustomScoringType("completion");
+    setCustomIsSimultaneous(false);
     setShowCustomForm(false);
   };
 
@@ -411,7 +414,10 @@ export default function CreateEventPage() {
                       )}
                     >
                       <div
-                        onClick={() => setMode(opt.value)}
+                        onClick={() => {
+                          setMode(opt.value);
+                          if (opt.value === "tournament") setTeamMode(false);
+                        }}
                         className="text-center space-y-2"
                       >
                         <span className="text-3xl">{opt.icon}</span>
@@ -434,7 +440,8 @@ export default function CreateEventPage() {
                 </div>
               </div>
 
-              {/* Team mode toggle */}
+              {/* Team mode toggle (hidden in tournament — bracket elimination is individual) */}
+              {mode !== "tournament" && (
               <div>
                 <div className="flex items-center justify-between">
                   <div>
@@ -465,6 +472,7 @@ export default function CreateEventPage() {
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Team count selector (visible when team mode is on) */}
               {teamMode && (
@@ -712,6 +720,36 @@ export default function CreateEventPage() {
                           </div>
                         </div>
 
+                        {/* Simultaneous (Group) toggle */}
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
+                              Simultaneous (Group)
+                            </p>
+                            <p className="font-body text-[9px] text-retro-muted/60 mt-0.5">
+                              Everyone does it together
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setCustomIsSimultaneous(!customIsSimultaneous)}
+                            className={cn(
+                              "relative w-14 h-7 rounded-full transition-all duration-300 border-2",
+                              customIsSimultaneous
+                                ? "bg-retro-green/30 border-retro-green"
+                                : "bg-elevated border-retro-muted/30"
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300",
+                                customIsSimultaneous
+                                  ? "left-7 bg-retro-green shadow-[0_0_8px_rgba(57,255,20,0.5)]"
+                                  : "left-0.5 bg-retro-muted"
+                              )}
+                            />
+                          </button>
+                        </div>
+
                         {/* CANCEL + ADD buttons */}
                         <div className="flex gap-3 pt-2">
                           <RetroButton
@@ -726,6 +764,7 @@ export default function CreateEventPage() {
                               setCustomDuration(60);
                               setCustomCategory("Creativity");
                               setCustomScoringType("completion");
+                              setCustomIsSimultaneous(false);
                             }}
                           >
                             CANCEL

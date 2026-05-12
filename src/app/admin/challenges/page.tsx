@@ -24,6 +24,7 @@ interface Challenge {
   safetyFlags: string[];
   isSystem: boolean;
   interactiveData: unknown;
+  isSimultaneous: boolean;
 }
 
 type EditingChallenge = Partial<Challenge> & { id?: string };
@@ -100,6 +101,7 @@ export default function AdminChallengesPage() {
       scoringType: "completion",
       safetyFlags: [],
       isSystem: false,
+      isSimultaneous: false,
     });
     setIsCreating(true);
   };
@@ -459,6 +461,31 @@ export default function AdminChallengesPage() {
                 </button>
               </div>
 
+              {/* isSimultaneous toggle */}
+              <div className="flex items-center justify-between">
+                <label className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
+                  Simultaneous (Group)
+                </label>
+                <button
+                  onClick={() => updateField("isSimultaneous", !editingChallenge.isSimultaneous)}
+                  className={cn(
+                    "relative w-14 h-7 rounded-full transition-all duration-300 border-2",
+                    editingChallenge.isSimultaneous
+                      ? "bg-retro-green/30 border-retro-green"
+                      : "bg-elevated border-retro-muted/30"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300",
+                      editingChallenge.isSimultaneous
+                        ? "left-7 bg-retro-green shadow-[0_0_8px_rgba(57,255,20,0.5)]"
+                        : "left-0.5 bg-retro-muted"
+                    )}
+                  />
+                </button>
+              </div>
+
               {/* Action buttons */}
               <div className="flex gap-3 pt-2">
                 <RetroButton
@@ -520,6 +547,11 @@ export default function AdminChallengesPage() {
                     <span className="font-retro text-[8px] text-retro-blue shrink-0 bg-retro-blue/10 px-1.5 py-0.5 border border-retro-blue/20">
                       {c.scoringType}
                     </span>
+                    {c.isSimultaneous && (
+                      <span className="font-retro text-[8px] text-retro-green shrink-0 bg-retro-green/10 px-1.5 py-0.5 border border-retro-green/20">
+                        GROUP
+                      </span>
+                    )}
                     <span className="font-retro text-[8px] text-retro-muted shrink-0">
                       {c.audience || "—"}
                     </span>

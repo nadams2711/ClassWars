@@ -15,21 +15,25 @@ const PLACE_COLORS = [
 interface WinnerPickerProps {
   participants: { id: string; nickname: string }[];
   actionLoading?: string | null;
-  onConfirm: (first: string, second: string, third: string) => void;
+  minPicks?: number;
+  onConfirm: (...picks: string[]) => void;
 }
 
 export function WinnerPicker({
   participants,
   actionLoading,
+  minPicks: minPicksProp,
   onConfirm,
 }: WinnerPickerProps) {
   const [picks, setPicks] = useState<string[]>([]);
+  const maxPicks = Math.min(3, participants.length);
+  const minPicks = Math.min(minPicksProp ?? 3, participants.length);
 
   const handleTap = (id: string) => {
     setPicks((prev) => {
       const idx = prev.indexOf(id);
       if (idx !== -1) return prev.slice(0, idx);
-      if (prev.length >= 3) return prev;
+      if (prev.length >= maxPicks) return prev;
       return [...prev, id];
     });
   };
@@ -104,8 +108,8 @@ export function WinnerPicker({
         <RetroButton
           variant="gold"
           size="lg"
-          onClick={() => onConfirm(picks[0], picks[1], picks[2])}
-          disabled={picks.length < 3 || actionLoading === "pick_winners"}
+          onClick={() => onConfirm(...picks)}
+          disabled={picks.length < minPicks || actionLoading === "pick_winners"}
         >
           {actionLoading === "pick_winners" ? "CONFIRMING..." : "CONFIRM WINNERS"}
         </RetroButton>

@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       safetyFlags: (rest.safetyFlags as string[]) || [],
       isSystem: (rest.isSystem as boolean) ?? false,
       interactiveData: rest.interactiveData || null,
+      isSimultaneous: (rest.isSimultaneous as boolean) ?? false,
     };
   });
 

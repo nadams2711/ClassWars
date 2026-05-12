@@ -140,6 +140,7 @@ export const challengeTemplates = pgTable("challenge_templates", {
   safetyFlags: jsonb("safety_flags").default([]),
   isSystem: boolean("is_system").default(true),
   interactiveData: jsonb("interactive_data"),
+  isSimultaneous: boolean("is_simultaneous").default(false),
   createdBy: uuid("created_by").references(() => users.id, {
     onDelete: "set null",
   }),
