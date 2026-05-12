@@ -7,11 +7,13 @@ import { RetroCard } from "@/components/ui/RetroCard";
 import { RetroInput } from "@/components/ui/RetroInput";
 import { EventWizard } from "@/components/host/EventWizard";
 import { ChallengeLibrary } from "@/components/host/ChallengeLibrary";
+import { PixelAvatar } from "@/components/game/PixelAvatar";
+import { AvatarPicker } from "@/components/game/AvatarPicker";
 import { cn } from "@/lib/utils";
 import type { ChallengeTemplate } from "@/types/challenge";
 
 type Audience = "classroom" | "office" | "universal";
-type Mode = "quick_play" | "pack_play" | "tournament" | "pass_play";
+type Mode = "quick_play" | "pack_play" | "tournament";
 type LocationType = "anywhere" | "classroom" | "park" | "restaurant" | "home" | "beach" | "office";
 
 interface PackInfo {
@@ -47,12 +49,6 @@ const MODE_OPTIONS: { value: Mode; label: string; description: string; icon: str
     label: "Tournament",
     description: "Bracket elimination",
     icon: "\u{1F3C6}",
-  },
-  {
-    value: "pass_play",
-    label: "Pass & Play",
-    description: "One phone, pass it around",
-    icon: "\u{1F4F1}",
   },
 ];
 
@@ -116,12 +112,27 @@ export default function CreateEventPage() {
   const [maxParticipants, setMaxParticipants] = useState(50);
 
   // Pass & Play state
-  const [playerNames, setPlayerNames] = useState<string[]>([]);
+  const [passPlay, setPassPlay] = useState(false);
+  const [passPlayPlayers, setPassPlayPlayers] = useState<{ name: string; avatarIndex: number }[]>([]);
   const [newPlayerName, setNewPlayerName] = useState("");
+  const [editingAvatarIndex, setEditingAvatarIndex] = useState<number | null>(null);
+
+  const nextAvailableAvatar = () => {
+    const used = new Set(passPlayPlayers.map((p) => p.avatarIndex));
+    for (let i = 0; i < 24; i++) {
+      if (!used.has(i)) return i;
+    }
+    return 0;
+  };
+
+  // Reset passPlay when switching to tournament
+  useEffect(() => {
+    if (mode === "tournament") setPassPlay(false);
+  }, [mode]);
 
   // Fetch challenges when entering step 2 in quick_play or tournament mode
   useEffect(() => {
-    if (step === 2 && (mode === "quick_play" || mode === "tournament" || mode === "pass_play")) {
+    if (step === 2 && (mode === "quick_play" || mode === "tournament")) {
       setLoadingChallenges(true);
       fetch("/api/challenges")
         .then((res) => res.json())
@@ -150,7 +161,7 @@ export default function CreateEventPage() {
     mode === "pack_play"
       ? selectedPackId !== null
       : selectedChallengeIds.length > 0;
-  const canAdvanceStep3 = mode === "pass_play" ? playerNames.length >= 2 : maxParticipants >= 2;
+  const canAdvanceStep3 = passPlay ? passPlayPlayers.length >= 2 : maxParticipants >= 2;
 
   const canAdvance =
     step === 1
@@ -166,16 +177,24 @@ export default function CreateEventPage() {
     }
 
     // Pass & Play: store data locally and navigate (no server event)
-    if (mode === "pass_play") {
-      const selectedTemplates = challenges.filter((c) =>
-        selectedChallengeIds.includes(c.id)
-      );
+    if (passPlay) {
+      let passPlayChallenges: ChallengeTemplate[];
+      if (mode === "pack_play" && selectedPackId) {
+        // Fetch challenge templates from the pack API
+        const res = await fetch(`/api/packs/${selectedPackId}/challenges`);
+        passPlayChallenges = res.ok ? await res.json() : [];
+      } else {
+        passPlayChallenges = challenges.filter((c) =>
+          selectedChallengeIds.includes(c.id)
+        );
+      }
       sessionStorage.setItem(
         "passplay_data",
         JSON.stringify({
-          playerNames,
-          challenges: selectedTemplates,
+          players: passPlayPlayers,
+          challenges: passPlayChallenges,
           eventName: eventName.trim(),
+          mode,
         })
       );
       router.push("/passplay");
@@ -297,7 +316,7 @@ export default function CreateEventPage() {
                 <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-3">
                   Game Mode
                 </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {MODE_OPTIONS.map((opt) => (
                     <RetroCard
                       key={opt.value}
@@ -386,6 +405,40 @@ export default function CreateEventPage() {
                         {count} Teams
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pass & Play toggle (hidden for tournament) */}
+              {mode !== "tournament" && (
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
+                        Pass &amp; Play
+                      </p>
+                      <p className="font-body text-xs text-retro-muted/60 mt-1">
+                        One device, pass it around
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setPassPlay(!passPlay)}
+                      className={cn(
+                        "relative w-14 h-7 rounded-full transition-all duration-300 border-2",
+                        passPlay
+                          ? "bg-retro-purple/30 border-retro-purple"
+                          : "bg-elevated border-retro-muted/30"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300",
+                          passPlay
+                            ? "left-7 bg-retro-purple-light shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                            : "left-0.5 bg-retro-muted"
+                        )}
+                      />
+                    </button>
                   </div>
                 </div>
               )}
@@ -490,8 +543,8 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              {/* Quick Play / Pass & Play mode */}
-              {(mode === "quick_play" || mode === "pass_play") && (
+              {/* Quick Play mode */}
+              {mode === "quick_play" && (
                 <div>
                   <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-4">
                     Pick Your Challenges
@@ -592,7 +645,7 @@ export default function CreateEventPage() {
                       Mode
                     </span>
                     <span className="font-body text-sm text-retro-text capitalize">
-                      {mode.replace(/_/g, " ")}
+                      {mode.replace(/_/g, " ")}{passPlay ? " (Pass & Play)" : ""}
                     </span>
                   </div>
                   <div className="h-px bg-retro-purple/10" />
@@ -650,8 +703,8 @@ export default function CreateEventPage() {
                 </div>
               </RetroCard>
 
-              {/* Pass & Play: Player name entry */}
-              {mode === "pass_play" ? (
+              {/* Pass & Play: Player name + avatar entry */}
+              {passPlay ? (
                 <div className="space-y-4">
                   <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
                     Add Players (2-12)
@@ -663,8 +716,8 @@ export default function CreateEventPage() {
                       onChange={(e) => setNewPlayerName(e.target.value)}
                       maxLength={20}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && newPlayerName.trim() && playerNames.length < 12) {
-                          setPlayerNames((prev) => [...prev, newPlayerName.trim()]);
+                        if (e.key === "Enter" && newPlayerName.trim() && passPlayPlayers.length < 12) {
+                          setPassPlayPlayers((prev) => [...prev, { name: newPlayerName.trim(), avatarIndex: nextAvailableAvatar() }]);
                           setNewPlayerName("");
                         }
                       }}
@@ -672,10 +725,10 @@ export default function CreateEventPage() {
                     <RetroButton
                       variant="primary"
                       size="md"
-                      disabled={!newPlayerName.trim() || playerNames.length >= 12}
+                      disabled={!newPlayerName.trim() || passPlayPlayers.length >= 12}
                       onClick={() => {
-                        if (newPlayerName.trim() && playerNames.length < 12) {
-                          setPlayerNames((prev) => [...prev, newPlayerName.trim()]);
+                        if (newPlayerName.trim() && passPlayPlayers.length < 12) {
+                          setPassPlayPlayers((prev) => [...prev, { name: newPlayerName.trim(), avatarIndex: nextAvailableAvatar() }]);
                           setNewPlayerName("");
                         }
                       }}
@@ -683,29 +736,48 @@ export default function CreateEventPage() {
                       ADD
                     </RetroButton>
                   </div>
-                  {playerNames.length > 0 && (
+                  {passPlayPlayers.length > 0 && (
                     <div className="space-y-1">
-                      {playerNames.map((name, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between px-3 py-2 bg-elevated border border-retro-purple/20"
-                        >
-                          <span className="font-retro text-[10px] text-retro-text">
-                            {i + 1}. {name}
-                          </span>
-                          <button
-                            onClick={() =>
-                              setPlayerNames((prev) => prev.filter((_, idx) => idx !== i))
-                            }
-                            className="font-retro text-[9px] text-retro-pink hover:text-retro-pink/80"
-                          >
-                            REMOVE
-                          </button>
+                      {passPlayPlayers.map((player, i) => (
+                        <div key={i}>
+                          <div className="flex items-center justify-between px-3 py-2 bg-elevated border border-retro-purple/20">
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => setEditingAvatarIndex(editingAvatarIndex === i ? null : i)}>
+                                <PixelAvatar avatarIndex={player.avatarIndex} size="sm" />
+                              </button>
+                              <span className="font-retro text-[10px] text-retro-text">
+                                {i + 1}. {player.name}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setPassPlayPlayers((prev) => prev.filter((_, idx) => idx !== i));
+                                if (editingAvatarIndex === i) setEditingAvatarIndex(null);
+                              }}
+                              className="font-retro text-[9px] text-retro-pink hover:text-retro-pink/80"
+                            >
+                              REMOVE
+                            </button>
+                          </div>
+                          {editingAvatarIndex === i && (
+                            <div className="border border-retro-purple/20 border-t-0 bg-elevated p-3">
+                              <AvatarPicker
+                                selectedIndex={player.avatarIndex}
+                                onSelect={(idx) => {
+                                  setPassPlayPlayers((prev) =>
+                                    prev.map((p, pi) => pi === i ? { ...p, avatarIndex: idx } : p)
+                                  );
+                                  setEditingAvatarIndex(null);
+                                }}
+                                nickname={player.name}
+                              />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   )}
-                  {playerNames.length < 2 && (
+                  {passPlayPlayers.length < 2 && (
                     <p className="font-retro text-[9px] text-retro-muted/60">
                       Need at least 2 players to start
                     </p>

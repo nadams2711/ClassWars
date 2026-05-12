@@ -8,6 +8,8 @@ import { RetroCard } from "@/components/ui/RetroCard";
 import { ScanlineOverlay } from "@/components/ui/ScanlineOverlay";
 import { WinnerPicker } from "@/components/game/WinnerPicker";
 import { PodiumReveal } from "@/components/game/PodiumReveal";
+import { PixelAvatar } from "@/components/game/PixelAvatar";
+import { CountdownTimer } from "@/components/game/CountdownTimer";
 import { useSound } from "@/hooks/useSound";
 import { useStopwatch } from "@/hooks/useStopwatch";
 import { useCountdown } from "@/hooks/useCountdown";
@@ -30,11 +32,13 @@ type PassPlayPhase =
 interface Player {
   id: string;
   name: string;
+  avatarIndex: number;
   score: number;
 }
 
 interface PassPlayData {
-  playerNames: string[];
+  players?: { name: string; avatarIndex: number }[];
+  playerNames?: string[];
   challenges: ChallengeTemplate[];
   eventName: string;
 }
@@ -88,6 +92,8 @@ export default function PassPlayPage() {
   const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
   const [roundScores, setRoundScores] = useState<Map<string, number>>(new Map());
   const [showPodium, setShowPodium] = useState(false);
+  const [podiumDone, setPodiumDone] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
   const [turnTimerEnd, setTurnTimerEnd] = useState<string | null>(null);
 
   // Load data from sessionStorage
@@ -99,14 +105,16 @@ export default function PassPlayPage() {
     }
     try {
       const data: PassPlayData = JSON.parse(raw);
-      if (!data.playerNames?.length || !data.challenges?.length) {
+      const playerList = data.players || data.playerNames?.map((name, i) => ({ name, avatarIndex: i % 24 }));
+      if (!playerList?.length || !data.challenges?.length) {
         router.push("/host/create");
         return;
       }
       setPlayers(
-        data.playerNames.map((name, i) => ({
+        playerList.map((p, i) => ({
           id: `pp_${i}`,
-          name,
+          name: p.name,
+          avatarIndex: p.avatarIndex,
           score: 0,
         }))
       );
@@ -144,13 +152,17 @@ export default function PassPlayPage() {
     play("menu_confirm");
   }, [play]);
 
-  const startPlayerActive = useCallback(() => {
+  const activatePlayer = useCallback(() => {
     setTurnStartTime(Date.now());
     const duration = currentChallenge?.durationSeconds || 60;
     setTurnTimerEnd(new Date(Date.now() + duration * 1000).toISOString());
     setPhase("PLAYER_ACTIVE");
     play("countdown_go");
   }, [play, currentChallenge]);
+
+  const startPlayerActive = useCallback(() => {
+    setShowCountdown(true);
+  }, []);
 
   const completePlayerTurn = useCallback(() => {
     const elapsed = Date.now() - turnStartTime;
@@ -445,9 +457,8 @@ export default function PassPlayPage() {
               <motion.div
                 animate={{ y: [0, -8, 0] }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                className="text-6xl"
               >
-                {"\u{1F4F1}"}
+                <PixelAvatar avatarIndex={currentPlayer.avatarIndex} size="xl" />
               </motion.div>
 
               <div className="text-center space-y-2">
@@ -466,7 +477,7 @@ export default function PassPlayPage() {
               </div>
 
               <RetroButton variant="primary" size="lg" onClick={startPlayerActive}>
-                I&apos;M READY
+                START
               </RetroButton>
             </motion.div>
           )}
@@ -545,7 +556,7 @@ export default function PassPlayPage() {
                   size="lg"
                   onClick={completePlayerTurn}
                 >
-                  DONE!
+                  END TURN
                 </RetroButton>
               </div>
             </motion.div>
@@ -824,25 +835,74 @@ export default function PassPlayPage() {
                 </div>
               )}
 
-              {showPodium && podiumFirst && podiumSecond && podiumThird && (
+              {showPodium && !podiumDone && podiumFirst && podiumSecond && podiumThird && (
                 <PodiumReveal
                   first={{
                     nickname: podiumFirst.name,
-                    avatarIndex: 0,
+                    avatarIndex: podiumFirst.avatarIndex,
                     score: podiumFirst.score,
                   }}
                   second={{
                     nickname: podiumSecond.name,
-                    avatarIndex: 1,
+                    avatarIndex: podiumSecond.avatarIndex,
                     score: podiumSecond.score,
                   }}
                   third={{
                     nickname: podiumThird.name,
-                    avatarIndex: 2,
+                    avatarIndex: podiumThird.avatarIndex,
                     score: podiumThird.score,
                   }}
-                  onComplete={() => {}}
+                  onComplete={() => setPodiumDone(true)}
                 />
+              )}
+
+              {/* Final standings after podium (3+ players) */}
+              {podiumDone && podiumFirst && podiumSecond && podiumThird && (
+                <div className="space-y-6">
+                  <div className="text-center">
+                    <h2
+                      className="font-retro text-lg text-retro-gold"
+                      style={{ textShadow: "0 0 16px rgba(255,215,0,0.5)" }}
+                    >
+                      FINAL RESULTS
+                    </h2>
+                  </div>
+                  <RetroCard glow="gold" padding="lg">
+                    <div className="space-y-3">
+                      {sortedPlayers.map((p, i) => {
+                        const placeLabel = i === 0 ? "1ST" : i === 1 ? "2ND" : i === 2 ? "3RD" : `#${i + 1}`;
+                        const placeColor =
+                          i === 0
+                            ? "text-retro-gold border-retro-gold/40 bg-retro-gold/10"
+                            : i === 1
+                              ? "text-retro-blue border-retro-blue/40 bg-retro-blue/10"
+                              : i === 2
+                                ? "text-retro-green border-retro-green/40 bg-retro-green/10"
+                                : "text-retro-muted border-retro-muted/20 bg-elevated";
+                        return (
+                          <div
+                            key={p.id}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3 border",
+                              placeColor
+                            )}
+                          >
+                            <span className="font-retro text-xs w-8">
+                              {placeLabel}
+                            </span>
+                            <PixelAvatar avatarIndex={p.avatarIndex} size="sm" />
+                            <span className="font-retro text-[10px] flex-1 truncate text-retro-text">
+                              {p.name}
+                            </span>
+                            <span className="font-retro text-xs tabular-nums">
+                              {p.score} pts
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </RetroCard>
+                </div>
               )}
 
               {/* 2-player final or after podium close */}
@@ -892,7 +952,7 @@ export default function PassPlayPage() {
               )}
 
               {/* Play again / exit buttons */}
-              {showPodium && (
+              {(podiumDone || (showPodium && !podiumThird)) && (
                 <div className="flex justify-center gap-3 pt-4">
                   <RetroButton
                     variant="primary"
@@ -904,6 +964,7 @@ export default function PassPlayPage() {
                       );
                       setCurrentChallengeIndex(0);
                       setShowPodium(false);
+                      setPodiumDone(false);
                       startChallenge();
                     }}
                   >
@@ -925,6 +986,16 @@ export default function PassPlayPage() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* 3-2-1 Countdown overlay */}
+      {showCountdown && (
+        <CountdownTimer
+          onComplete={() => {
+            setShowCountdown(false);
+            activatePlayer();
+          }}
+        />
+      )}
     </div>
   );
 }
