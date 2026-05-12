@@ -11,7 +11,7 @@ interface SoundStore {
 export const useSoundStore = create<SoundStore>()(
   persist(
     (set) => ({
-      isMuted: true, // Muted by default on first visit
+      isMuted: false,
       volume: 0.7,
       toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
       setVolume: (volume) => set({ volume }),

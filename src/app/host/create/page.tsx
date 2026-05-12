@@ -10,7 +10,9 @@ import { ChallengeLibrary } from "@/components/host/ChallengeLibrary";
 import { PixelAvatar } from "@/components/game/PixelAvatar";
 import { AvatarPicker } from "@/components/game/AvatarPicker";
 import { cn } from "@/lib/utils";
+import { useSoundStore } from "@/stores/soundStore";
 import type { ChallengeTemplate } from "@/types/challenge";
+import type { ScoringType, SubmissionType } from "@/types/game";
 
 type Audience = "classroom" | "office" | "universal";
 type Mode = "quick_play" | "pack_play" | "tournament";
@@ -86,8 +88,38 @@ const LOCATION_OPTIONS: { value: LocationType; label: string; icon: string }[] =
 
 const BRACKET_SIZES = [8, 16, 32];
 
+const WIN_METHOD_OPTIONS: { value: ScoringType; label: string; description: string }[] = [
+  { value: "completion", label: "Auto-Score", description: "10pts + speed bonus" },
+  { value: "judge", label: "Judge Picks", description: "Someone picks 1st/2nd/3rd" },
+  { value: "vote", label: "Player Vote", description: "Players vote for the best" },
+];
+
+const DURATION_PRESETS: { value: number; label: string }[] = [
+  { value: 30, label: "30s" },
+  { value: 60, label: "1m" },
+  { value: 90, label: "90s" },
+  { value: 120, label: "2m" },
+  { value: 180, label: "3m" },
+];
+
+const CUSTOM_CATEGORY_OPTIONS = [
+  "Improv", "Performance", "Creativity", "Social courage",
+  "Teamwork", "Observation", "Gesture", "Quiet creativity",
+  "Memory", "Communication", "Leadership", "Innovation",
+  "Problem-solving", "Culture", "Recognition", "Presentation",
+];
+
+function submissionTypeForScoring(scoring: ScoringType): SubmissionType {
+  switch (scoring) {
+    case "judge": return "judge";
+    case "vote": return "vote";
+    default: return "completion_tap";
+  }
+}
+
 export default function CreateEventPage() {
   const router = useRouter();
+  const { isMuted, toggleMute } = useSoundStore();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -117,6 +149,16 @@ export default function CreateEventPage() {
   const [newPlayerName, setNewPlayerName] = useState("");
   const [editingAvatarIndex, setEditingAvatarIndex] = useState<number | null>(null);
 
+  // Custom challenge state
+  const [customChallenges, setCustomChallenges] = useState<ChallengeTemplate[]>([]);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customTitle, setCustomTitle] = useState("");
+  const [customDescription, setCustomDescription] = useState("");
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [customDuration, setCustomDuration] = useState(60);
+  const [customCategory, setCustomCategory] = useState("Creativity");
+  const [customScoringType, setCustomScoringType] = useState<ScoringType>("completion");
+
   const nextAvailableAvatar = () => {
     const used = new Set(passPlayPlayers.map((p) => p.avatarIndex));
     for (let i = 0; i < 24; i++) {
@@ -125,10 +167,7 @@ export default function CreateEventPage() {
     return 0;
   };
 
-  // Reset passPlay when switching to tournament
-  useEffect(() => {
-    if (mode === "tournament") setPassPlay(false);
-  }, [mode]);
+  // (tournament now supports Pass & Play)
 
   // Fetch challenges when entering step 2 in quick_play or tournament mode
   useEffect(() => {
@@ -156,11 +195,44 @@ export default function CreateEventPage() {
     );
   };
 
+  const handleAddCustomChallenge = () => {
+    if (!customTitle.trim() || !customDescription.trim()) return;
+    const challenge: ChallengeTemplate = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      title: customTitle.trim(),
+      shortDescription: customDescription.trim(),
+      fullInstructions: customInstructions.trim() || customDescription.trim(),
+      audience,
+      audiencePack: "universal",
+      category: customCategory,
+      intensityTone: "balanced",
+      durationSeconds: customDuration,
+      movementLevel: "standing",
+      noiseLevel: "medium",
+      submissionType: submissionTypeForScoring(customScoringType),
+      scoringType: customScoringType,
+      safetyFlags: [],
+      isSystem: false,
+    };
+    setCustomChallenges((prev) => [...prev, challenge]);
+    setCustomTitle("");
+    setCustomDescription("");
+    setCustomInstructions("");
+    setCustomDuration(60);
+    setCustomCategory("Creativity");
+    setCustomScoringType("completion");
+    setShowCustomForm(false);
+  };
+
+  const handleRemoveCustomChallenge = (id: string) => {
+    setCustomChallenges((prev) => prev.filter((c) => c.id !== id));
+  };
+
   const canAdvanceStep1 = eventName.trim().length > 0;
   const canAdvanceStep2 =
     mode === "pack_play"
-      ? selectedPackId !== null
-      : selectedChallengeIds.length > 0;
+      ? selectedPackId !== null || (passPlay && customChallenges.length > 0)
+      : (selectedChallengeIds.length + customChallenges.length) > 0;
   const canAdvanceStep3 = passPlay ? passPlayPlayers.length >= 2 : maxParticipants >= 2;
 
   const canAdvance =
@@ -188,6 +260,7 @@ export default function CreateEventPage() {
           selectedChallengeIds.includes(c.id)
         );
       }
+      passPlayChallenges = [...passPlayChallenges, ...customChallenges];
       sessionStorage.setItem(
         "passplay_data",
         JSON.stringify({
@@ -247,9 +320,9 @@ export default function CreateEventPage() {
 
   // Compute summary for step 3
   const challengeCount =
-    mode === "pack_play"
+    (mode === "pack_play"
       ? packs.find((p) => p.id === selectedPackId)?.challengeCount || 0
-      : selectedChallengeIds.length;
+      : selectedChallengeIds.length) + customChallenges.length;
 
   const selectedPackName =
     mode === "pack_play"
@@ -260,9 +333,18 @@ export default function CreateEventPage() {
     <div className="min-h-screen bg-page">
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
-        <h1 className="font-retro text-lg md:text-xl text-center text-retro-purple-light mb-1 drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]">
-          CREATE GAME
-        </h1>
+        <div className="flex items-center justify-center gap-3 mb-1">
+          <h1 className="font-retro text-lg md:text-xl text-center text-retro-purple-light drop-shadow-[0_0_20px_rgba(168,85,247,0.4)]">
+            CREATE GAME
+          </h1>
+          <button
+            onClick={toggleMute}
+            className="font-retro text-[9px] text-retro-muted hover:text-retro-text transition-colors px-1"
+            title={isMuted ? "Unmute" : "Mute"}
+          >
+            {isMuted ? "\uD83D\uDD07" : "\uD83D\uDD0A"}
+          </button>
+        </div>
         <div className="h-px bg-gradient-to-r from-transparent via-retro-purple to-transparent mb-6" />
 
         <EventWizard
@@ -409,39 +491,37 @@ export default function CreateEventPage() {
                 </div>
               )}
 
-              {/* Pass & Play toggle (hidden for tournament) */}
-              {mode !== "tournament" && (
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
-                        Pass &amp; Play
-                      </p>
-                      <p className="font-body text-xs text-retro-muted/60 mt-1">
-                        One device, pass it around
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setPassPlay(!passPlay)}
-                      className={cn(
-                        "relative w-14 h-7 rounded-full transition-all duration-300 border-2",
-                        passPlay
-                          ? "bg-retro-purple/30 border-retro-purple"
-                          : "bg-elevated border-retro-muted/30"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300",
-                          passPlay
-                            ? "left-7 bg-retro-purple-light shadow-[0_0_8px_rgba(168,85,247,0.5)]"
-                            : "left-0.5 bg-retro-muted"
-                        )}
-                      />
-                    </button>
+              {/* Pass & Play toggle */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
+                      Pass &amp; Play
+                    </p>
+                    <p className="font-body text-xs text-retro-muted/60 mt-1">
+                      One device, pass it around
+                    </p>
                   </div>
+                  <button
+                    onClick={() => setPassPlay(!passPlay)}
+                    className={cn(
+                      "relative w-14 h-7 rounded-full transition-all duration-300 border-2",
+                      passPlay
+                        ? "bg-retro-purple/30 border-retro-purple"
+                        : "bg-elevated border-retro-muted/30"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300",
+                        passPlay
+                          ? "left-7 bg-retro-purple-light shadow-[0_0_8px_rgba(168,85,247,0.5)]"
+                          : "left-0.5 bg-retro-muted"
+                      )}
+                    />
+                  </button>
                 </div>
-              )}
+              </div>
 
               {/* Location selector */}
               <div>
@@ -475,6 +555,206 @@ export default function CreateEventPage() {
           {/* ─── STEP 2: CHALLENGES ─── */}
           {step === 2 && (
             <div className="space-y-6">
+              {/* Custom Challenges section (Pass & Play only) */}
+              {passPlay && (
+                <div className="space-y-4">
+                  <p className="font-retro text-[10px] uppercase tracking-wider text-retro-muted">
+                    Custom Challenges
+                  </p>
+
+                  {/* List of added custom challenges */}
+                  {customChallenges.length > 0 && (
+                    <div className="space-y-1">
+                      {customChallenges.map((c) => (
+                        <div
+                          key={c.id}
+                          className="flex items-center justify-between px-3 py-2 bg-elevated border border-retro-blue/20"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="font-retro text-[10px] text-retro-text truncate">
+                              {c.title}
+                            </span>
+                            <span className="font-retro text-[8px] text-retro-muted shrink-0">
+                              {c.durationSeconds}s
+                            </span>
+                            <span className="font-retro text-[8px] text-retro-muted shrink-0">
+                              {c.category}
+                            </span>
+                            <span className="font-retro text-[8px] px-1.5 py-0.5 bg-retro-blue/10 border border-retro-blue/20 text-retro-blue shrink-0">
+                              {WIN_METHOD_OPTIONS.find((w) => w.value === c.scoringType)?.label ?? c.scoringType}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveCustomChallenge(c.id)}
+                            className="font-retro text-[9px] text-retro-pink hover:text-retro-pink/80 ml-2 shrink-0"
+                          >
+                            REMOVE
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Create challenge toggle / form */}
+                  {!showCustomForm ? (
+                    <button
+                      onClick={() => setShowCustomForm(true)}
+                      className="w-full py-3 border-2 border-dashed border-retro-blue/30 text-retro-blue font-retro text-[10px] uppercase hover:border-retro-blue/60 hover:bg-retro-blue/5 transition-all"
+                    >
+                      + CREATE CHALLENGE
+                    </button>
+                  ) : (
+                    <RetroCard glow="blue" padding="lg">
+                      <div className="space-y-4">
+                        <h4 className="font-retro text-[10px] text-retro-blue text-center uppercase">
+                          New Custom Challenge
+                        </h4>
+
+                        {/* Title */}
+                        <RetroInput
+                          label="Title"
+                          placeholder="e.g. Best Dance Move"
+                          value={customTitle}
+                          onChange={(e) => setCustomTitle(e.target.value)}
+                          maxLength={80}
+                        />
+
+                        {/* Short Description */}
+                        <RetroInput
+                          label="Short Description"
+                          placeholder="e.g. Show your best dance move in 10 seconds"
+                          value={customDescription}
+                          onChange={(e) => setCustomDescription(e.target.value)}
+                          maxLength={200}
+                        />
+
+                        {/* Instructions (optional) */}
+                        <div>
+                          <label className="block font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-2">
+                            Instructions (optional)
+                          </label>
+                          <textarea
+                            value={customInstructions}
+                            onChange={(e) => setCustomInstructions(e.target.value)}
+                            placeholder="Detailed instructions shown to players..."
+                            maxLength={500}
+                            rows={3}
+                            className="w-full px-3 py-2 bg-elevated border-2 border-retro-muted/20 text-retro-text font-body text-sm placeholder:text-retro-muted/40 focus:border-retro-blue focus:outline-none transition-colors resize-none"
+                          />
+                        </div>
+
+                        {/* Duration presets */}
+                        <div>
+                          <label className="block font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-2">
+                            Duration
+                          </label>
+                          <div className="flex gap-2">
+                            {DURATION_PRESETS.map((d) => (
+                              <button
+                                key={d.value}
+                                onClick={() => setCustomDuration(d.value)}
+                                className={cn(
+                                  "flex-1 py-2 font-retro text-[10px] border-2 transition-all",
+                                  customDuration === d.value
+                                    ? "border-retro-blue bg-retro-blue/10 text-retro-blue shadow-[0_0_8px_rgba(59,130,246,0.2)]"
+                                    : "border-retro-muted/20 bg-elevated text-retro-muted hover:border-retro-muted/40"
+                                )}
+                              >
+                                {d.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Category dropdown */}
+                        <div>
+                          <label className="block font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-2">
+                            Category
+                          </label>
+                          <select
+                            value={customCategory}
+                            onChange={(e) => setCustomCategory(e.target.value)}
+                            className="w-full px-3 py-2 bg-elevated border-2 border-retro-muted/20 text-retro-text font-body text-sm focus:border-retro-blue focus:outline-none transition-colors"
+                          >
+                            {CUSTOM_CATEGORY_OPTIONS.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Win Method grid */}
+                        <div>
+                          <label className="block font-retro text-[10px] uppercase tracking-wider text-retro-muted mb-2">
+                            Win Method
+                          </label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {WIN_METHOD_OPTIONS.map((wm) => (
+                              <button
+                                key={wm.value}
+                                onClick={() => setCustomScoringType(wm.value)}
+                                className={cn(
+                                  "flex flex-col items-center gap-1 py-3 px-2 border-2 transition-all",
+                                  customScoringType === wm.value
+                                    ? "border-retro-blue bg-retro-blue/10 text-retro-blue shadow-[0_0_8px_rgba(59,130,246,0.2)]"
+                                    : "border-retro-muted/20 bg-elevated text-retro-muted hover:border-retro-muted/40"
+                                )}
+                              >
+                                <span className="font-retro text-[10px] uppercase">
+                                  {wm.label}
+                                </span>
+                                <span className="font-body text-[9px] text-center leading-tight opacity-70">
+                                  {wm.description}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* CANCEL + ADD buttons */}
+                        <div className="flex gap-3 pt-2">
+                          <RetroButton
+                            variant="secondary"
+                            size="md"
+                            className="flex-1"
+                            onClick={() => {
+                              setShowCustomForm(false);
+                              setCustomTitle("");
+                              setCustomDescription("");
+                              setCustomInstructions("");
+                              setCustomDuration(60);
+                              setCustomCategory("Creativity");
+                              setCustomScoringType("completion");
+                            }}
+                          >
+                            CANCEL
+                          </RetroButton>
+                          <RetroButton
+                            variant="primary"
+                            size="md"
+                            className="flex-1"
+                            disabled={!customTitle.trim() || !customDescription.trim()}
+                            onClick={handleAddCustomChallenge}
+                          >
+                            ADD CHALLENGE
+                          </RetroButton>
+                        </div>
+                      </div>
+                    </RetroCard>
+                  )}
+
+                  {/* Divider before library/pack section */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-retro-muted/20" />
+                    <span className="font-retro text-[8px] text-retro-muted/40 uppercase">
+                      or pick from library
+                    </span>
+                    <div className="flex-1 h-px bg-retro-muted/20" />
+                  </div>
+                </div>
+              )}
+
               {/* Pack Play mode */}
               {mode === "pack_play" && (
                 <div>

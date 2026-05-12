@@ -16,7 +16,7 @@ class RetroSynth {
     }
     // Resume if suspended (browser autoplay policy)
     if (this.ctx.state === "suspended") {
-      this.ctx.resume();
+      this.ctx.resume().catch(() => {});
     }
     return this.ctx;
   }

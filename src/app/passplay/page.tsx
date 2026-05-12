@@ -11,9 +11,17 @@ import { PodiumReveal } from "@/components/game/PodiumReveal";
 import { PixelAvatar } from "@/components/game/PixelAvatar";
 import { CountdownTimer } from "@/components/game/CountdownTimer";
 import { useSound } from "@/hooks/useSound";
+import { useSoundStore } from "@/stores/soundStore";
 import { useStopwatch } from "@/hooks/useStopwatch";
 import { useCountdown } from "@/hooks/useCountdown";
 import { cn } from "@/lib/utils";
+import { TournamentBracket } from "@/components/game/TournamentBracket";
+import {
+  generateBracket,
+  advanceBracket,
+  getBracketWinner,
+} from "@/lib/game/brackets";
+import type { BracketMatch } from "@/lib/game/brackets";
 import type { ChallengeTemplate } from "@/types/challenge";
 import type { ScoringType } from "@/types/game";
 
@@ -27,7 +35,12 @@ type PassPlayPhase =
   | "JUDGING"
   | "VOTING"
   | "SCORE_REVEAL"
-  | "GAME_OVER";
+  | "GAME_OVER"
+  | "BRACKET_VIEW"
+  | "MATCH_INTRO"
+  | "MATCH_JUDGING"
+  | "MATCH_RESULT"
+  | "TOURNAMENT_WINNER";
 
 interface Player {
   id: string;
@@ -41,6 +54,7 @@ interface PassPlayData {
   playerNames?: string[];
   challenges: ChallengeTemplate[];
   eventName: string;
+  mode?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────
@@ -75,6 +89,7 @@ function formatDuration(seconds: number): string {
 export default function PassPlayPage() {
   const router = useRouter();
   const { play } = useSound();
+  const { isMuted, toggleMute } = useSoundStore();
 
   // Hydration-safe loading
   const [loaded, setLoaded] = useState(false);
@@ -95,6 +110,14 @@ export default function PassPlayPage() {
   const [podiumDone, setPodiumDone] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
   const [turnTimerEnd, setTurnTimerEnd] = useState<string | null>(null);
+
+  // Tournament state
+  const [isTournament, setIsTournament] = useState(false);
+  const [bracketMatches, setBracketMatches] = useState<BracketMatch[]>([]);
+  const [currentMatchId, setCurrentMatchId] = useState<string | null>(null);
+  const [matchPlayerIndex, setMatchPlayerIndex] = useState(0); // 0 = player1, 1 = player2
+  const [matchWinnerId, setMatchWinnerId] = useState<string | null>(null);
+  const [tournamentRoundIndex, setTournamentRoundIndex] = useState(0);
 
   // Load data from sessionStorage
   useEffect(() => {
@@ -120,6 +143,16 @@ export default function PassPlayPage() {
       );
       setChallenges(data.challenges);
       setEventName(data.eventName || "Pass & Play");
+
+      // Detect tournament mode
+      if (data.mode === "tournament") {
+        setIsTournament(true);
+        const playerIds = playerList.map((_: { name: string; avatarIndex: number }, i: number) => `pp_${i}`);
+        const bracket = generateBracket(playerIds);
+        setBracketMatches(bracket);
+        setPhase("BRACKET_VIEW");
+      }
+
       setLoaded(true);
     } catch {
       router.push("/host/create");
@@ -132,7 +165,12 @@ export default function PassPlayPage() {
 
   const currentChallenge = challenges[currentChallengeIndex] ?? null;
   const currentPlayer = players[currentPlayerIndex] ?? null;
-  const scoringType = currentChallenge ? deriveScoringType(currentChallenge) : "completion";
+  // In tournament mode, derive from the tournament challenge
+  const activeChallenge = isTournament
+    ? (challenges[tournamentRoundIndex % challenges.length] ?? currentChallenge)
+    : currentChallenge;
+  const scoringType = activeChallenge ? deriveScoringType(activeChallenge) : "completion";
+  const isTimed = scoringType === "completion" || scoringType === "speed";
 
   // ─── Phase transitions ──────────────────────────
 
@@ -154,15 +192,26 @@ export default function PassPlayPage() {
 
   const activatePlayer = useCallback(() => {
     setTurnStartTime(Date.now());
-    const duration = currentChallenge?.durationSeconds || 60;
-    setTurnTimerEnd(new Date(Date.now() + duration * 1000).toISOString());
+    if (isTimed) {
+      const activeCh = isTournament
+        ? challenges[tournamentRoundIndex % challenges.length]
+        : currentChallenge;
+      const duration = activeCh?.durationSeconds || 60;
+      setTurnTimerEnd(new Date(Date.now() + duration * 1000).toISOString());
+    } else {
+      setTurnTimerEnd(null);
+    }
     setPhase("PLAYER_ACTIVE");
     play("countdown_go");
-  }, [play, currentChallenge]);
+  }, [play, currentChallenge, isTimed, isTournament, challenges, tournamentRoundIndex]);
 
   const startPlayerActive = useCallback(() => {
-    setShowCountdown(true);
-  }, []);
+    if (isTimed) {
+      setShowCountdown(true);
+    } else {
+      activatePlayer();
+    }
+  }, [isTimed, activatePlayer]);
 
   const completePlayerTurn = useCallback(() => {
     const elapsed = Date.now() - turnStartTime;
@@ -198,17 +247,10 @@ export default function PassPlayPage() {
     }
   }, [scoringType, play]);
 
-  // Auto-advance when timer expires
+  // Auto-advance when timer expires (handled via ref to work for both modes)
   const autoAdvanceRef = useRef(false);
-  useEffect(() => {
-    if (turnCountdown.isExpired && phase === "PLAYER_ACTIVE" && !autoAdvanceRef.current) {
-      autoAdvanceRef.current = true;
-      completePlayerTurn();
-    }
-    if (!turnCountdown.isExpired) {
-      autoAdvanceRef.current = false;
-    }
-  }, [turnCountdown.isExpired, phase, completePlayerTurn]);
+  const isTournamentRef = useRef(isTournament);
+  isTournamentRef.current = isTournament;
 
   // ─── Scoring ────────────────────────────────────
 
@@ -328,6 +370,138 @@ export default function PassPlayPage() {
     }
   }, [currentChallengeIndex, challenges.length, startChallenge, play]);
 
+  // ─── Tournament helpers ─────────────────────────
+
+  const findNextMatch = useCallback((): BracketMatch | null => {
+    // Find the first pending match that has both participants set
+    return (
+      bracketMatches.find(
+        (m) =>
+          m.status === "pending" &&
+          m.participant1Id != null &&
+          m.participant2Id != null
+      ) || null
+    );
+  }, [bracketMatches]);
+
+  const currentMatch = currentMatchId
+    ? bracketMatches.find((m) => m.id === currentMatchId) || null
+    : null;
+
+  const currentMatchPlayer = (() => {
+    if (!isTournament || !currentMatch) return null;
+    const pid =
+      matchPlayerIndex === 0
+        ? currentMatch.participant1Id
+        : currentMatch.participant2Id;
+    return pid ? players.find((p) => p.id === pid) || null : null;
+  })();
+
+  // Get current challenge for the tournament round
+  const tournamentChallenge =
+    isTournament && challenges.length > 0
+      ? challenges[tournamentRoundIndex % challenges.length]
+      : null;
+
+  const startNextTournamentMatch = useCallback(() => {
+    const next = findNextMatch();
+    if (!next) {
+      // Check if tournament is over
+      const winner = getBracketWinner(bracketMatches);
+      if (winner) {
+        setPhase("TOURNAMENT_WINNER");
+        play("victory_fanfare");
+      }
+      return;
+    }
+    setCurrentMatchId(next.id);
+    setMatchPlayerIndex(0);
+    setMatchWinnerId(null);
+    setPhase("MATCH_INTRO");
+    play("vs_slam");
+  }, [findNextMatch, bracketMatches, play]);
+
+  const completeMatchPlayerTurn = useCallback(() => {
+    setTurnTimerEnd(null);
+    play("submit_success");
+
+    if (matchPlayerIndex === 0) {
+      // First player done, switch to second
+      setMatchPlayerIndex(1);
+      setPhase("PLAYER_TURN");
+    } else {
+      // Both done, go to judging
+      setPhase("MATCH_JUDGING");
+      play("dramatic_pause");
+    }
+  }, [matchPlayerIndex, play]);
+
+  const handleMatchWinner = useCallback(
+    (winnerId: string) => {
+      if (!currentMatchId) return;
+      setMatchWinnerId(winnerId);
+      const updated = advanceBracket(bracketMatches, currentMatchId, winnerId);
+      setBracketMatches(updated);
+      setPhase("MATCH_RESULT");
+      play("crowd_cheer");
+
+      // Check if the current round is complete to advance tournamentRoundIndex
+      const match = bracketMatches.find((m) => m.id === currentMatchId);
+      if (match) {
+        const roundMatches = updated.filter(
+          (m) => m.roundNumber === match.roundNumber
+        );
+        const allDone = roundMatches.every((m) => m.status === "completed");
+        if (allDone) {
+          setTournamentRoundIndex((i) => i + 1);
+        }
+      }
+    },
+    [currentMatchId, bracketMatches, play]
+  );
+
+  // Build participant map for TournamentBracket component
+  const participantMap = (() => {
+    const map: Record<string, { nickname: string; avatarIndex: number }> = {};
+    players.forEach((p) => {
+      map[p.id] = { nickname: p.name, avatarIndex: p.avatarIndex };
+    });
+    return map;
+  })();
+
+  // Convert BracketMatch[] to TournamentBracket's expected format
+  const bracketDisplayMatches = bracketMatches.map((m) => ({
+    id: m.id,
+    round: m.roundNumber,
+    position: m.matchIndex,
+    player1Id: m.participant1Id,
+    player2Id: m.participant2Id,
+    player1Score: null as number | null,
+    player2Score: null as number | null,
+    winnerId: m.winnerId,
+    isActive: m.id === currentMatchId && phase !== "BRACKET_VIEW",
+  }));
+
+  const tournamentWinnerId = getBracketWinner(bracketMatches);
+  const tournamentWinner = tournamentWinnerId
+    ? players.find((p) => p.id === tournamentWinnerId) || null
+    : null;
+
+  // Auto-advance when timer expires
+  useEffect(() => {
+    if (turnCountdown.isExpired && phase === "PLAYER_ACTIVE" && !autoAdvanceRef.current) {
+      autoAdvanceRef.current = true;
+      if (isTournamentRef.current) {
+        completeMatchPlayerTurn();
+      } else {
+        completePlayerTurn();
+      }
+    }
+    if (!turnCountdown.isExpired) {
+      autoAdvanceRef.current = false;
+    }
+  }, [turnCountdown.isExpired, phase, completePlayerTurn, completeMatchPlayerTurn]);
+
   // ─── Podium data ────────────────────────────────
 
   const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
@@ -361,14 +535,29 @@ export default function PassPlayPage() {
             {eventName}
           </h1>
           <div className="flex items-center gap-3">
-            {challenges.length > 0 && phase !== "GAME_OVER" && (
-              <span className="font-retro text-[9px] text-retro-muted">
-                ROUND {currentChallengeIndex + 1}/{challenges.length}
-              </span>
+            {isTournament ? (
+              phase !== "TOURNAMENT_WINNER" && (
+                <span className="font-retro text-[9px] text-retro-gold">
+                  TOURNAMENT
+                </span>
+              )
+            ) : (
+              challenges.length > 0 && phase !== "GAME_OVER" && (
+                <span className="font-retro text-[9px] text-retro-muted">
+                  ROUND {currentChallengeIndex + 1}/{challenges.length}
+                </span>
+              )
             )}
             <span className="font-retro text-[9px] text-retro-blue">
               {players.length} PLAYERS
             </span>
+            <button
+              onClick={toggleMute}
+              className="font-retro text-[9px] text-retro-muted hover:text-retro-text transition-colors px-1"
+              title={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? "\uD83D\uDD07" : "\uD83D\uDD0A"}
+            </button>
           </div>
         </div>
       </div>
@@ -397,7 +586,7 @@ export default function PassPlayPage() {
                     {currentChallenge.category}
                   </span>
                   <span className="font-retro text-[10px] text-retro-blue">
-                    {formatDuration(currentChallenge.durationSeconds)}
+                    {isTimed ? formatDuration(currentChallenge.durationSeconds) : "UNTIMED"}
                   </span>
                 </div>
 
@@ -446,121 +635,170 @@ export default function PassPlayPage() {
           )}
 
           {/* ─── PLAYER TURN (pass the phone screen) ─── */}
-          {phase === "PLAYER_TURN" && currentPlayer && (
-            <motion.div
-              key={`turn-${currentPlayerIndex}`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
-            >
+          {phase === "PLAYER_TURN" && (() => {
+            const turnPlayer = isTournament ? currentMatchPlayer : currentPlayer;
+            if (!turnPlayer) return null;
+            return (
               <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                key={`turn-${isTournament ? `${currentMatchId}-${matchPlayerIndex}` : currentPlayerIndex}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
               >
-                <PixelAvatar avatarIndex={currentPlayer.avatarIndex} size="xl" />
-              </motion.div>
-
-              <div className="text-center space-y-2">
-                <p className="font-retro text-[10px] text-retro-muted uppercase tracking-widest">
-                  Pass the phone to
-                </p>
-                <h2
-                  className="font-retro text-xl text-retro-gold"
-                  style={{ textShadow: "0 0 16px rgba(255,215,0,0.5)" }}
+                <motion.div
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  {currentPlayer.name}
-                </h2>
-                <p className="font-retro text-[9px] text-retro-muted">
-                  Player {currentPlayerIndex + 1} of {players.length}
-                </p>
-              </div>
+                  <PixelAvatar avatarIndex={turnPlayer.avatarIndex} size="xl" />
+                </motion.div>
 
-              <RetroButton variant="primary" size="lg" onClick={startPlayerActive}>
-                START
-              </RetroButton>
-            </motion.div>
-          )}
+                <div className="text-center space-y-2">
+                  <p className="font-retro text-[10px] text-retro-muted uppercase tracking-widest">
+                    Pass the phone to
+                  </p>
+                  <h2
+                    className="font-retro text-xl text-retro-gold"
+                    style={{ textShadow: "0 0 16px rgba(255,215,0,0.5)" }}
+                  >
+                    {turnPlayer.name}
+                  </h2>
+                  {!isTournament && (
+                    <p className="font-retro text-[9px] text-retro-muted">
+                      Player {currentPlayerIndex + 1} of {players.length}
+                    </p>
+                  )}
+                  {isTournament && (
+                    <p className="font-retro text-[9px] text-retro-muted">
+                      Player {matchPlayerIndex + 1} of 2
+                    </p>
+                  )}
+                </div>
+
+                <RetroButton variant="primary" size="lg" onClick={isTournament ? startPlayerActive : startPlayerActive}>
+                  START
+                </RetroButton>
+              </motion.div>
+            );
+          })()}
 
           {/* ─── PLAYER ACTIVE (doing the challenge) ─── */}
-          {phase === "PLAYER_ACTIVE" && currentPlayer && currentChallenge && (
-            <motion.div
-              key={`active-${currentPlayerIndex}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div className="text-center">
-                <span className="font-retro text-[10px] text-retro-green uppercase tracking-widest">
-                  {currentPlayer.name}&apos;S TURN
-                </span>
-              </div>
-
-              {/* Timer bar */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-retro text-[10px] text-retro-muted tabular-nums">
-                    {stopwatch.formatted}
-                  </span>
-                  <span
-                    className={cn(
-                      "font-retro text-lg tabular-nums transition-colors duration-300",
-                      turnCountdown.urgency === "critical"
-                        ? "text-retro-pink animate-pulse"
-                        : turnCountdown.urgency === "warning"
-                          ? "text-retro-gold"
-                          : "text-retro-green"
-                    )}
-                    style={{
-                      textShadow:
-                        turnCountdown.urgency === "critical"
-                          ? "0 0 8px rgba(255,45,120,0.5)"
-                          : turnCountdown.urgency === "warning"
-                            ? "0 0 8px rgba(255,215,0,0.4)"
-                            : "0 0 8px rgba(57,255,20,0.3)",
-                    }}
-                  >
-                    {turnCountdown.formatted}
+          {phase === "PLAYER_ACTIVE" && (() => {
+            const activePlayer = isTournament ? currentMatchPlayer : currentPlayer;
+            const activeChallenge = isTournament ? tournamentChallenge : currentChallenge;
+            const onEndTurn = isTournament ? completeMatchPlayerTurn : completePlayerTurn;
+            if (!activePlayer || !activeChallenge) return null;
+            return (
+              <motion.div
+                key={`active-${isTournament ? `${currentMatchId}-${matchPlayerIndex}` : currentPlayerIndex}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <span className="font-retro text-[10px] text-retro-green uppercase tracking-widest">
+                    {activePlayer.name}&apos;S TURN
                   </span>
                 </div>
-                <div className="h-1.5 bg-page/60 w-full overflow-hidden">
-                  <motion.div
-                    className={cn(
-                      "h-full transition-colors duration-500",
-                      turnCountdown.urgency === "critical"
-                        ? "bg-retro-pink"
-                        : turnCountdown.urgency === "warning"
-                          ? "bg-retro-gold"
-                          : "bg-retro-green"
-                    )}
-                    style={{
-                      width: `${Math.max(0, (turnCountdown.secondsLeft / (currentChallenge.durationSeconds || 60)) * 100)}%`,
-                    }}
-                  />
-                </div>
-              </div>
 
-              <RetroCard glow="green" padding="md">
-                <h3 className="font-retro text-xs text-retro-text mb-2">
-                  {currentChallenge.title}
-                </h3>
-                <p className="font-body text-sm text-retro-muted">
-                  {currentChallenge.shortDescription}
-                </p>
-              </RetroCard>
+                {isTimed ? (
+                  <>
+                    {/* Timer bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-retro text-[10px] text-retro-muted tabular-nums">
+                          {stopwatch.formatted}
+                        </span>
+                        <span
+                          className={cn(
+                            "font-retro text-lg tabular-nums transition-colors duration-300",
+                            turnCountdown.urgency === "critical"
+                              ? "text-retro-pink animate-pulse"
+                              : turnCountdown.urgency === "warning"
+                                ? "text-retro-gold"
+                                : "text-retro-green"
+                          )}
+                          style={{
+                            textShadow:
+                              turnCountdown.urgency === "critical"
+                                ? "0 0 8px rgba(255,45,120,0.5)"
+                                : turnCountdown.urgency === "warning"
+                                  ? "0 0 8px rgba(255,215,0,0.4)"
+                                  : "0 0 8px rgba(57,255,20,0.3)",
+                          }}
+                        >
+                          {turnCountdown.formatted}
+                        </span>
+                      </div>
+                      <div className="h-1.5 bg-page/60 w-full overflow-hidden">
+                        <motion.div
+                          className={cn(
+                            "h-full transition-colors duration-500",
+                            turnCountdown.urgency === "critical"
+                              ? "bg-retro-pink"
+                              : turnCountdown.urgency === "warning"
+                                ? "bg-retro-gold"
+                                : "bg-retro-green"
+                          )}
+                          style={{
+                            width: `${Math.max(0, (turnCountdown.secondsLeft / (activeChallenge.durationSeconds || 60)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
 
-              <div className="flex justify-center">
-                <RetroButton
-                  variant="gold"
-                  size="lg"
-                  onClick={completePlayerTurn}
-                >
-                  END TURN
-                </RetroButton>
-              </div>
-            </motion.div>
-          )}
+                    <RetroCard glow="green" padding="md">
+                      <h3 className="font-retro text-xs text-retro-text mb-2">
+                        {activeChallenge.title}
+                      </h3>
+                      <p className="font-body text-sm text-retro-muted">
+                        {activeChallenge.shortDescription}
+                      </p>
+                    </RetroCard>
+
+                    <div className="flex justify-center">
+                      <RetroButton
+                        variant="gold"
+                        size="lg"
+                        onClick={onEndTurn}
+                      >
+                        END TURN
+                      </RetroButton>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Non-timed: elapsed time + DONE button */}
+                    <div className="text-center">
+                      <span className="font-retro text-sm text-retro-muted tabular-nums">
+                        {stopwatch.formatted}
+                      </span>
+                    </div>
+
+                    <RetroCard glow="green" padding="md">
+                      <h3 className="font-retro text-xs text-retro-text mb-2">
+                        {activeChallenge.title}
+                      </h3>
+                      <p className="font-body text-sm text-retro-muted">
+                        {activeChallenge.shortDescription}
+                      </p>
+                    </RetroCard>
+
+                    <div className="flex justify-center">
+                      <RetroButton
+                        variant="success"
+                        size="lg"
+                        onClick={onEndTurn}
+                      >
+                        DONE
+                      </RetroButton>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            );
+          })()}
 
           {/* ─── ALL DONE (all players finished) ─── */}
           {phase === "ALL_DONE" && (
@@ -982,6 +1220,253 @@ export default function PassPlayPage() {
                   </RetroButton>
                 </div>
               )}
+            </motion.div>
+          )}
+          {/* ─── TOURNAMENT: BRACKET VIEW ─── */}
+          {phase === "BRACKET_VIEW" && isTournament && (
+            <motion.div
+              key="bracket"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <TournamentBracket
+                matches={bracketDisplayMatches}
+                participantMap={participantMap}
+              />
+
+              <div className="flex justify-center">
+                <RetroButton
+                  variant="gold"
+                  size="lg"
+                  onClick={startNextTournamentMatch}
+                >
+                  NEXT MATCH
+                </RetroButton>
+              </div>
+            </motion.div>
+          )}
+
+          {/* ─── TOURNAMENT: MATCH INTRO (VS screen) ─── */}
+          {phase === "MATCH_INTRO" && isTournament && currentMatch && (() => {
+            const p1 = currentMatch.participant1Id
+              ? players.find((p) => p.id === currentMatch.participant1Id)
+              : null;
+            const p2 = currentMatch.participant2Id
+              ? players.find((p) => p.id === currentMatch.participant2Id)
+              : null;
+            const challenge = tournamentChallenge;
+            if (!p1 || !p2) return null;
+            return (
+              <motion.div
+                key={`match-intro-${currentMatchId}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
+              >
+                {/* VS display */}
+                <div className="flex items-center gap-6">
+                  <div className="flex flex-col items-center gap-2">
+                    <PixelAvatar avatarIndex={p1.avatarIndex} size="xl" />
+                    <span className="font-retro text-xs text-retro-text">{p1.name}</span>
+                  </div>
+                  <motion.span
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                    className="font-retro text-2xl text-retro-pink"
+                    style={{ textShadow: "0 0 16px rgba(255,45,120,0.5)" }}
+                  >
+                    VS
+                  </motion.span>
+                  <div className="flex flex-col items-center gap-2">
+                    <PixelAvatar avatarIndex={p2.avatarIndex} size="xl" />
+                    <span className="font-retro text-xs text-retro-text">{p2.name}</span>
+                  </div>
+                </div>
+
+                {/* Challenge info */}
+                {challenge && (
+                  <RetroCard glow="purple" padding="md">
+                    <h3 className="font-retro text-xs text-retro-text mb-1 text-center">
+                      {challenge.title}
+                    </h3>
+                    <p className="font-body text-sm text-retro-muted text-center">
+                      {challenge.shortDescription}
+                    </p>
+                  </RetroCard>
+                )}
+
+                <RetroButton
+                  variant="success"
+                  size="lg"
+                  onClick={() => {
+                    setMatchPlayerIndex(0);
+                    setPhase("PLAYER_TURN");
+                    play("menu_confirm");
+                  }}
+                >
+                  BEGIN
+                </RetroButton>
+              </motion.div>
+            );
+          })()}
+
+          {/* ─── TOURNAMENT: MATCH JUDGING ─── */}
+          {phase === "MATCH_JUDGING" && isTournament && currentMatch && (() => {
+            const p1 = currentMatch.participant1Id
+              ? players.find((p) => p.id === currentMatch.participant1Id)
+              : null;
+            const p2 = currentMatch.participant2Id
+              ? players.find((p) => p.id === currentMatch.participant2Id)
+              : null;
+            if (!p1 || !p2) return null;
+            return (
+              <motion.div
+                key={`match-judge-${currentMatchId}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
+              >
+                <div className="text-center">
+                  <h2
+                    className="font-retro text-sm text-retro-gold uppercase tracking-widest"
+                    style={{ textShadow: "0 0 12px rgba(255,215,0,0.4)" }}
+                  >
+                    WHO WON?
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+                  <button
+                    onClick={() => handleMatchWinner(p1.id)}
+                    className="flex flex-col items-center gap-3 p-6 border-2 border-retro-purple/20 bg-elevated hover:border-retro-gold/60 hover:bg-retro-gold/5 transition-all"
+                  >
+                    <PixelAvatar avatarIndex={p1.avatarIndex} size="lg" />
+                    <span className="font-retro text-xs text-retro-text">{p1.name}</span>
+                  </button>
+                  <button
+                    onClick={() => handleMatchWinner(p2.id)}
+                    className="flex flex-col items-center gap-3 p-6 border-2 border-retro-purple/20 bg-elevated hover:border-retro-gold/60 hover:bg-retro-gold/5 transition-all"
+                  >
+                    <PixelAvatar avatarIndex={p2.avatarIndex} size="lg" />
+                    <span className="font-retro text-xs text-retro-text">{p2.name}</span>
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })()}
+
+          {/* ─── TOURNAMENT: MATCH RESULT ─── */}
+          {phase === "MATCH_RESULT" && isTournament && matchWinnerId && (() => {
+            const winner = players.find((p) => p.id === matchWinnerId);
+            if (!winner) return null;
+            return (
+              <motion.div
+                key={`match-result-${currentMatchId}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
+              >
+                <motion.div
+                  animate={{ y: [0, -8, 0] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <PixelAvatar avatarIndex={winner.avatarIndex} size="xl" />
+                </motion.div>
+
+                <div className="text-center space-y-2">
+                  <h2
+                    className="font-retro text-lg text-retro-gold"
+                    style={{ textShadow: "0 0 16px rgba(255,215,0,0.5)" }}
+                  >
+                    {winner.name} WINS!
+                  </h2>
+                </div>
+
+                <RetroButton
+                  variant="primary"
+                  size="lg"
+                  onClick={() => {
+                    setPhase("BRACKET_VIEW");
+                    play("menu_confirm");
+                  }}
+                >
+                  CONTINUE
+                </RetroButton>
+              </motion.div>
+            );
+          })()}
+
+          {/* ─── TOURNAMENT: WINNER ─── */}
+          {phase === "TOURNAMENT_WINNER" && isTournament && tournamentWinner && (
+            <motion.div
+              key="tournament-winner"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
+            >
+              <motion.span
+                className="text-5xl"
+                animate={{ rotate: [0, -10, 10, 0], scale: [1, 1.2, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+              >
+                {"\uD83D\uDC51"}
+              </motion.span>
+
+              <motion.div
+                animate={{ y: [0, -8, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <PixelAvatar avatarIndex={tournamentWinner.avatarIndex} size="xl" />
+              </motion.div>
+
+              <div className="text-center space-y-2">
+                <h2
+                  className="font-retro text-xl text-retro-gold"
+                  style={{ textShadow: "0 0 20px rgba(255,215,0,0.6)" }}
+                >
+                  {tournamentWinner.name}
+                </h2>
+                <p className="font-retro text-sm text-retro-purple-light uppercase tracking-widest">
+                  TOURNAMENT CHAMPION
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <RetroButton
+                  variant="primary"
+                  size="md"
+                  onClick={() => {
+                    // Regenerate bracket for replay
+                    const playerIds = players.map((p) => p.id);
+                    const bracket = generateBracket(playerIds);
+                    setBracketMatches(bracket);
+                    setCurrentMatchId(null);
+                    setMatchPlayerIndex(0);
+                    setMatchWinnerId(null);
+                    setTournamentRoundIndex(0);
+                    setPhase("BRACKET_VIEW");
+                    play("menu_confirm");
+                  }}
+                >
+                  PLAY AGAIN
+                </RetroButton>
+                <RetroButton
+                  variant="secondary"
+                  size="md"
+                  onClick={() => {
+                    sessionStorage.removeItem("passplay_data");
+                    router.push("/host/create");
+                  }}
+                >
+                  NEW GAME
+                </RetroButton>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
