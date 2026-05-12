@@ -61,6 +61,7 @@ export default function AdminChallengesPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchChallenges = useCallback(async () => {
@@ -221,6 +222,13 @@ export default function AdminChallengesPage() {
             EXPORT
           </RetroButton>
           <div className="flex-1" />
+          <button
+            onClick={() => setShowHelp(true)}
+            className="w-8 h-8 flex items-center justify-center font-retro text-xs border-2 border-retro-purple/40 bg-elevated text-retro-purple-light hover:border-retro-purple hover:bg-retro-purple/10 transition-all"
+            title="Field reference"
+          >
+            ?
+          </button>
           <RetroButton variant="success" size="md" onClick={handleCreate}>
             + NEW CHALLENGE
           </RetroButton>
@@ -594,6 +602,206 @@ export default function AdminChallengesPage() {
           </div>
         )}
       </div>
+
+      {/* Help modal */}
+      {showHelp && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setShowHelp(false)}
+        >
+          <div
+            className="bg-card border-2 border-retro-purple/40 max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelp(false)}
+              className="absolute top-3 right-3 font-retro text-xs text-retro-muted hover:text-retro-pink transition-colors"
+            >
+              X
+            </button>
+
+            <h2
+              className="font-retro text-sm text-retro-purple-light text-center mb-1"
+              style={{ textShadow: "0 0 16px rgba(168,85,247,0.4)" }}
+            >
+              FIELD REFERENCE
+            </h2>
+            <div className="h-px bg-gradient-to-r from-transparent via-retro-purple to-transparent mb-5" />
+
+            <div className="space-y-5 font-body text-sm text-retro-text leading-relaxed">
+              {/* Title */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Title</h3>
+                <p className="text-retro-muted">Display name shown to players. Keep it short and punchy (max 120 chars).</p>
+              </div>
+
+              {/* Short Description */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Short Description</h3>
+                <p className="text-retro-muted">One-line summary shown in challenge previews and lobby cards (max 200 chars).</p>
+              </div>
+
+              {/* Full Instructions */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Full Instructions</h3>
+                <p className="text-retro-muted">Detailed rules displayed once the challenge starts. Can be multi-line (max 1000 chars).</p>
+              </div>
+
+              {/* Category */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Category</h3>
+                <p className="text-retro-muted">Free-text tag used for filtering and grouping (e.g. Creativity, Trivia, Physical).</p>
+              </div>
+
+              {/* Audience */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-purple-light uppercase tracking-wider mb-1">Audience</h3>
+                <p className="text-retro-muted mb-2">Who the challenge is designed for. Affects which challenges appear in a session.</p>
+                <div className="border border-retro-muted/20 text-[11px]">
+                  <div className="flex border-b border-retro-muted/20 bg-elevated">
+                    <span className="w-28 shrink-0 px-2 py-1 font-retro text-[9px] text-retro-muted">Value</span>
+                    <span className="px-2 py-1 font-retro text-[9px] text-retro-muted">Meaning</span>
+                  </div>
+                  <div className="flex border-b border-retro-muted/10">
+                    <span className="w-28 shrink-0 px-2 py-1 text-retro-blue">classroom</span>
+                    <span className="px-2 py-1 text-retro-muted">Students / school setting</span>
+                  </div>
+                  <div className="flex border-b border-retro-muted/10">
+                    <span className="w-28 shrink-0 px-2 py-1 text-retro-blue">office</span>
+                    <span className="px-2 py-1 text-retro-muted">Workplace / team-building</span>
+                  </div>
+                  <div className="flex">
+                    <span className="w-28 shrink-0 px-2 py-1 text-retro-blue">universal</span>
+                    <span className="px-2 py-1 text-retro-muted">Any audience</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Audience Pack */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-purple-light uppercase tracking-wider mb-1">Audience Pack</h3>
+                <p className="text-retro-muted mb-2">Sub-flavor within an audience. Controls tone and content style.</p>
+                <div className="border border-retro-muted/20 text-[11px]">
+                  <div className="flex border-b border-retro-muted/20 bg-elevated">
+                    <span className="w-40 shrink-0 px-2 py-1 font-retro text-[9px] text-retro-muted">Pack</span>
+                    <span className="px-2 py-1 font-retro text-[9px] text-retro-muted">Description</span>
+                  </div>
+                  {[
+                    ["classroom_funny", "Silly, meme-friendly classroom challenges"],
+                    ["classroom_low_noise", "Quieter activities for focused settings"],
+                    ["office_fun", "Lighthearted team-building activities"],
+                    ["office_professional", "Professional-safe icebreakers"],
+                    ["universal", "Works everywhere"],
+                    ["recess_riot", "High-energy, outdoor-friendly chaos"],
+                  ].map(([pack, desc]) => (
+                    <div key={pack} className="flex border-b border-retro-muted/10 last:border-0">
+                      <span className="w-40 shrink-0 px-2 py-1 text-retro-blue">{pack}</span>
+                      <span className="px-2 py-1 text-retro-muted">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Duration */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Duration (seconds)</h3>
+                <p className="text-retro-muted">How long players have to complete the challenge. Presets: 30, 60, 90, 120, 180.</p>
+              </div>
+
+              {/* Intensity */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Intensity</h3>
+                <p className="text-retro-muted"><strong>chill</strong> &mdash; relaxed pace. <strong>balanced</strong> &mdash; moderate energy. <strong>high-energy</strong> &mdash; fast and competitive.</p>
+              </div>
+
+              {/* Movement Level */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Movement Level</h3>
+                <p className="text-retro-muted"><strong>seated</strong> &mdash; no movement required. <strong>standing</strong> &mdash; players stand but stay in place. <strong>active</strong> &mdash; walking, running, or physical movement.</p>
+              </div>
+
+              {/* Noise Level */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Noise Level</h3>
+                <p className="text-retro-muted"><strong>quiet</strong> &mdash; silent or whisper. <strong>medium</strong> &mdash; normal conversation. <strong>loud</strong> &mdash; shouting, cheering, or music.</p>
+              </div>
+
+              {/* Submission Type */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-purple-light uppercase tracking-wider mb-1">Submission Type</h3>
+                <p className="text-retro-muted mb-2">How players submit their answer or proof of completion.</p>
+                <div className="border border-retro-muted/20 text-[11px]">
+                  <div className="flex border-b border-retro-muted/20 bg-elevated">
+                    <span className="w-32 shrink-0 px-2 py-1 font-retro text-[9px] text-retro-muted">Type</span>
+                    <span className="px-2 py-1 font-retro text-[9px] text-retro-muted">How it works</span>
+                  </div>
+                  {[
+                    ["completion_tap", "Player taps \"Done\" when finished"],
+                    ["text", "Player types a text answer"],
+                    ["photo", "Player uploads or takes a photo"],
+                    ["judge", "Host/judge manually scores each player"],
+                    ["vote", "All players vote on the best submission"],
+                    ["hybrid", "Combines multiple submission methods"],
+                  ].map(([type, desc]) => (
+                    <div key={type} className="flex border-b border-retro-muted/10 last:border-0">
+                      <span className="w-32 shrink-0 px-2 py-1 text-retro-blue">{type}</span>
+                      <span className="px-2 py-1 text-retro-muted">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Scoring Type */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-purple-light uppercase tracking-wider mb-1">Scoring Type</h3>
+                <p className="text-retro-muted mb-2">How points are awarded after submissions.</p>
+                <div className="border border-retro-muted/20 text-[11px]">
+                  <div className="flex border-b border-retro-muted/20 bg-elevated">
+                    <span className="w-28 shrink-0 px-2 py-1 font-retro text-[9px] text-retro-muted">Type</span>
+                    <span className="px-2 py-1 font-retro text-[9px] text-retro-muted">How points work</span>
+                  </div>
+                  {[
+                    ["completion", "Everyone who finishes gets equal points"],
+                    ["speed", "Faster completion = more points"],
+                    ["judge", "Host assigns scores manually"],
+                    ["vote", "Points based on peer votes received"],
+                    ["hybrid", "Combines multiple scoring methods"],
+                  ].map(([type, desc]) => (
+                    <div key={type} className="flex border-b border-retro-muted/10 last:border-0">
+                      <span className="w-28 shrink-0 px-2 py-1 text-retro-blue">{type}</span>
+                      <span className="px-2 py-1 text-retro-muted">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* System Challenge */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">System Challenge</h3>
+                <p className="text-retro-muted">When ON, this challenge is a built-in system challenge and cannot be deleted by regular users. Used for the default challenge pool.</p>
+              </div>
+
+              {/* Simultaneous */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Simultaneous (Group)</h3>
+                <p className="text-retro-muted">When ON, all players do the challenge at the same time instead of taking turns. Good for group activities, dance-offs, or anything where everyone participates together.</p>
+              </div>
+
+              {/* Interactive Data */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Interactive Data</h3>
+                <p className="text-retro-muted">Optional JSON payload for challenges that need extra config (e.g. quiz questions, drawing prompts). Only set via the API or import.</p>
+              </div>
+
+              {/* Safety Flags */}
+              <div>
+                <h3 className="font-retro text-[10px] text-retro-blue uppercase tracking-wider mb-1">Safety Flags</h3>
+                <p className="text-retro-muted">Tags like &quot;physical&quot; or &quot;allergen&quot; that let hosts filter out challenges that may not be safe for their group. Managed via the API or import.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
