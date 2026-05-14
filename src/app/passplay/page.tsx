@@ -71,21 +71,40 @@ interface PassPlayData {
 // ─── Helpers ──────────────────────────────────────
 
 function deriveScoringType(template: ChallengeTemplate): ScoringType {
+  // Submission types that inherently require manual scoring take priority
+  if (template.submissionType === "judge") return "judge";
+  if (template.submissionType === "vote") return "vote";
+  if (template.submissionType === "hybrid") return "hybrid";
+  // Use explicit scoring type if set
   if (template.scoringType) return template.scoringType;
-  switch (template.submissionType) {
-    case "judge":
-      return "judge";
-    case "vote":
-      return "vote";
-    case "completion_tap":
-    case "text":
-    case "photo":
-      return "completion";
-    case "hybrid":
-      return "hybrid";
-    default:
-      return "completion";
-  }
+  return "completion";
+}
+
+/** Compute rank at `index` in a descending-sorted score array, accounting for ties. */
+function rankAt(scores: number[], index: number): number {
+  if (index === 0 || scores[index] !== scores[index - 1]) return index + 1;
+  return rankAt(scores, index - 1);
+}
+
+function rankColor(rank: number): string {
+  if (rank === 1) return "text-retro-gold border-retro-gold/30 bg-retro-gold/10";
+  if (rank === 2) return "text-retro-blue border-retro-blue/30 bg-retro-blue/10";
+  if (rank === 3) return "text-retro-green border-retro-green/30 bg-retro-green/10";
+  return "text-retro-muted border-retro-muted/20 bg-elevated";
+}
+
+function rankColorStrong(rank: number): string {
+  if (rank === 1) return "text-retro-gold border-retro-gold/40 bg-retro-gold/10";
+  if (rank === 2) return "text-retro-blue border-retro-blue/40 bg-retro-blue/10";
+  if (rank === 3) return "text-retro-green border-retro-green/40 bg-retro-green/10";
+  return "text-retro-muted border-retro-muted/20 bg-elevated";
+}
+
+function rankLabel(rank: number): string {
+  if (rank === 1) return "1ST";
+  if (rank === 2) return "2ND";
+  if (rank === 3) return "3RD";
+  return `#${rank}`;
 }
 
 // ─── Main Page ────────────────────────────────────
@@ -245,28 +264,6 @@ export default function PassPlayPage() {
     play("submit_success");
   }, [turnStartTime, currentPlayerIndex, players, play]);
 
-  // Handle ALL_DONE -> choose scoring path
-  const proceedFromAllDone = useCallback(() => {
-    if (effectiveTurnStyle === "simultaneous") {
-      // Simultaneous challenges always go to judge picks (no individual data)
-      setPhase("JUDGING");
-      play("dramatic_pause");
-      return;
-    }
-    if (scoringType === "judge" || scoringType === "hybrid") {
-      setPhase("JUDGING");
-      play("dramatic_pause");
-    } else if (scoringType === "vote") {
-      setCurrentVoterIndex(0);
-      setPhase("VOTING");
-      play("dramatic_pause");
-    } else {
-      // Auto-score (completion/speed)
-      autoScore();
-    }
-  }, [scoringType, play, effectiveTurnStyle]);
-
-
   // ─── Scoring ────────────────────────────────────
 
   const autoScore = useCallback(() => {
@@ -300,50 +297,49 @@ export default function PassPlayPage() {
     [players]
   );
 
-  const submitVote = useCallback(
-    (votedForId: string) => {
-      const voterId = players[currentVoterIndex].id;
-      setVotes((prev) => {
-        const next = new Map(prev);
-        next.set(voterId, votedForId);
-        return next;
-      });
-      play("menu_confirm");
-
-      if (currentVoterIndex + 1 >= players.length) {
-        // Tally votes after state update
-        setTimeout(() => tallyVotes(), 50);
-      } else {
-        setCurrentVoterIndex((i) => i + 1);
-      }
-    },
-    [currentVoterIndex, players, play]
-  );
-
-  const tallyVotes = useCallback(() => {
+  const tallyVotes = useCallback((allVotes: Map<string, string>) => {
     const voteCounts = new Map<string, number>();
     players.forEach((p) => voteCounts.set(p.id, 0));
-    votes.forEach((votedFor) => {
+    allVotes.forEach((votedFor) => {
       voteCounts.set(votedFor, (voteCounts.get(votedFor) || 0) + 1);
     });
 
     // Sort by votes to assign judge-style points
     const sorted = Array.from(voteCounts.entries())
       .sort((a, b) => b[1] - a[1]);
+    const sortedCounts = sorted.map(([, count]) => count);
 
     const scores = new Map<string, number>();
     const placePoints = [20, 12, 8];
 
     sorted.forEach(([id], i) => {
-      if (i < 3) {
-        scores.set(id, placePoints[i]);
+      const rank = rankAt(sortedCounts, i);
+      if (rank <= 3) {
+        scores.set(id, placePoints[rank - 1]);
       } else {
         scores.set(id, 3);
       }
     });
 
     applyScores(scores);
-  }, [votes, players]);
+  }, [players]);
+
+  const submitVote = useCallback(
+    (votedForId: string) => {
+      const voterId = players[currentVoterIndex].id;
+      const newVotes = new Map(votes);
+      newVotes.set(voterId, votedForId);
+      setVotes(newVotes);
+      play("menu_confirm");
+
+      if (currentVoterIndex + 1 >= players.length) {
+        tallyVotes(newVotes);
+      } else {
+        setCurrentVoterIndex((i) => i + 1);
+      }
+    },
+    [currentVoterIndex, players, play, votes, tallyVotes]
+  );
 
   const applyScores = useCallback(
     (scores: Map<string, number>) => {
@@ -359,6 +355,27 @@ export default function PassPlayPage() {
     },
     [play]
   );
+
+  // Handle ALL_DONE -> choose scoring path
+  const proceedFromAllDone = useCallback(() => {
+    if (effectiveTurnStyle === "simultaneous") {
+      // Simultaneous challenges always go to judge picks (no individual data)
+      setPhase("JUDGING");
+      play("dramatic_pause");
+      return;
+    }
+    if (scoringType === "judge" || scoringType === "hybrid") {
+      setPhase("JUDGING");
+      play("dramatic_pause");
+    } else if (scoringType === "vote") {
+      setCurrentVoterIndex(0);
+      setPhase("VOTING");
+      play("dramatic_pause");
+    } else {
+      // Auto-score (completion/speed)
+      autoScore();
+    }
+  }, [scoringType, play, effectiveTurnStyle, autoScore]);
 
   const advanceToNextChallenge = useCallback(() => {
     if (currentChallengeIndex + 1 >= challenges.length) {
@@ -1029,22 +1046,17 @@ export default function PassPlayPage() {
 
               <RetroCard glow="purple" padding="md">
                 <div className="space-y-2">
-                  {[...players]
-                    .sort(
+                  {(() => {
+                    const sorted = [...players].sort(
                       (a, b) =>
                         (roundScores.get(b.id) || 0) -
                         (roundScores.get(a.id) || 0)
-                    )
-                    .map((p, i) => {
+                    );
+                    const sortedScores = sorted.map((p) => roundScores.get(p.id) || 0);
+                    return sorted.map((p, i) => {
                       const pts = roundScores.get(p.id) || 0;
-                      const colors =
-                        i === 0
-                          ? "text-retro-gold border-retro-gold/30 bg-retro-gold/10"
-                          : i === 1
-                            ? "text-retro-blue border-retro-blue/30 bg-retro-blue/10"
-                            : i === 2
-                              ? "text-retro-green border-retro-green/30 bg-retro-green/10"
-                              : "text-retro-muted border-retro-muted/20 bg-elevated";
+                      const rank = rankAt(sortedScores, i);
+                      const colors = rankColor(rank);
                       return (
                         <motion.div
                           key={p.id}
@@ -1064,7 +1076,8 @@ export default function PassPlayPage() {
                           </span>
                         </motion.div>
                       );
-                    })}
+                    });
+                  })()}
                 </div>
               </RetroCard>
 
@@ -1074,35 +1087,41 @@ export default function PassPlayPage() {
                   LEADERBOARD
                 </h3>
                 <div className="space-y-1">
-                  {sortedPlayers.map((p, i) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            "font-retro text-[9px] w-6",
-                            i === 0
-                              ? "text-retro-gold"
-                              : i === 1
-                                ? "text-retro-blue"
-                                : i === 2
-                                  ? "text-retro-green"
-                                  : "text-retro-muted"
-                          )}
+                  {(() => {
+                    const scores = sortedPlayers.map((p) => p.score);
+                    return sortedPlayers.map((p, i) => {
+                      const rank = rankAt(scores, i);
+                      return (
+                        <div
+                          key={p.id}
+                          className="flex items-center justify-between px-3 py-2"
                         >
-                          #{i + 1}
-                        </span>
-                        <span className="font-retro text-[10px] text-retro-text truncate">
-                          {p.name}
-                        </span>
-                      </div>
-                      <span className="font-retro text-[10px] text-retro-muted tabular-nums">
-                        {p.score} pts
-                      </span>
-                    </div>
-                  ))}
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "font-retro text-[9px] w-6",
+                                rank === 1
+                                  ? "text-retro-gold"
+                                  : rank === 2
+                                    ? "text-retro-blue"
+                                    : rank === 3
+                                      ? "text-retro-green"
+                                      : "text-retro-muted"
+                              )}
+                            >
+                              #{rank}
+                            </span>
+                            <span className="font-retro text-[10px] text-retro-text truncate">
+                              {p.name}
+                            </span>
+                          </div>
+                          <span className="font-retro text-[10px] text-retro-muted tabular-nums">
+                            {p.score} pts
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </RetroCard>
 
@@ -1210,37 +1229,32 @@ export default function PassPlayPage() {
                   </div>
                   <RetroCard glow="gold" padding="lg">
                     <div className="space-y-3">
-                      {sortedPlayers.map((p, i) => {
-                        const placeLabel = i === 0 ? "1ST" : i === 1 ? "2ND" : i === 2 ? "3RD" : `#${i + 1}`;
-                        const placeColor =
-                          i === 0
-                            ? "text-retro-gold border-retro-gold/40 bg-retro-gold/10"
-                            : i === 1
-                              ? "text-retro-blue border-retro-blue/40 bg-retro-blue/10"
-                              : i === 2
-                                ? "text-retro-green border-retro-green/40 bg-retro-green/10"
-                                : "text-retro-muted border-retro-muted/20 bg-elevated";
-                        return (
-                          <div
-                            key={p.id}
-                            className={cn(
-                              "flex items-center gap-3 px-4 py-3 border",
-                              placeColor
-                            )}
-                          >
-                            <span className="font-retro text-xs w-8">
-                              {placeLabel}
-                            </span>
-                            <PixelAvatar avatarIndex={p.avatarIndex} size="sm" />
-                            <span className="font-retro text-[10px] flex-1 truncate text-retro-text">
-                              {p.name}
-                            </span>
-                            <span className="font-retro text-xs tabular-nums">
-                              {p.score} pts
-                            </span>
-                          </div>
-                        );
-                      })}
+                      {(() => {
+                        const scores = sortedPlayers.map((p) => p.score);
+                        return sortedPlayers.map((p, i) => {
+                          const rank = rankAt(scores, i);
+                          return (
+                            <div
+                              key={p.id}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-3 border",
+                                rankColorStrong(rank)
+                              )}
+                            >
+                              <span className="font-retro text-xs w-8">
+                                {rankLabel(rank)}
+                              </span>
+                              <PixelAvatar avatarIndex={p.avatarIndex} size="sm" />
+                              <span className="font-retro text-[10px] flex-1 truncate text-retro-text">
+                                {p.name}
+                              </span>
+                              <span className="font-retro text-xs tabular-nums">
+                                {p.score} pts
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </RetroCard>
                 </div>
@@ -1259,34 +1273,31 @@ export default function PassPlayPage() {
                   </div>
                   <RetroCard glow="gold" padding="lg">
                     <div className="space-y-3">
-                      {sortedPlayers.map((p, i) => {
-                        const placeLabel = i === 0 ? "1ST" : i === 1 ? "2ND" : `#${i + 1}`;
-                        const placeColor =
-                          i === 0
-                            ? "text-retro-gold border-retro-gold/40 bg-retro-gold/10"
-                            : i === 1
-                              ? "text-retro-blue border-retro-blue/40 bg-retro-blue/10"
-                              : "text-retro-muted border-retro-muted/20 bg-elevated";
-                        return (
-                          <div
-                            key={p.id}
-                            className={cn(
-                              "flex items-center gap-3 px-4 py-3 border",
-                              placeColor
-                            )}
-                          >
-                            <span className="font-retro text-xs w-8">
-                              {placeLabel}
-                            </span>
-                            <span className="font-retro text-[10px] flex-1 truncate text-retro-text">
-                              {p.name}
-                            </span>
-                            <span className="font-retro text-xs tabular-nums">
-                              {p.score} pts
-                            </span>
-                          </div>
-                        );
-                      })}
+                      {(() => {
+                        const scores = sortedPlayers.map((p) => p.score);
+                        return sortedPlayers.map((p, i) => {
+                          const rank = rankAt(scores, i);
+                          return (
+                            <div
+                              key={p.id}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-3 border",
+                                rankColorStrong(rank)
+                              )}
+                            >
+                              <span className="font-retro text-xs w-8">
+                                {rankLabel(rank)}
+                              </span>
+                              <span className="font-retro text-[10px] flex-1 truncate text-retro-text">
+                                {p.name}
+                              </span>
+                              <span className="font-retro text-xs tabular-nums">
+                                {p.score} pts
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   </RetroCard>
                 </div>
