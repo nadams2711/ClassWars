@@ -12,6 +12,7 @@ import { PixelAvatar } from "@/components/game/PixelAvatar";
 import { useSound } from "@/hooks/useSound";
 import { useSoundStore } from "@/stores/soundStore";
 import { useStopwatch } from "@/hooks/useStopwatch";
+import { useCountdown } from "@/hooks/useCountdown";
 import { cn } from "@/lib/utils";
 import { TournamentBracket } from "@/components/game/TournamentBracket";
 import {
@@ -28,7 +29,9 @@ import type { ScoringType } from "@/types/game";
 type PassPlayPhase =
   | "CHALLENGE_INTRO"
   | "PLAYER_TURN"
+  | "PLAYER_COUNTDOWN"
   | "PLAYER_ACTIVE"
+  | "TURN_DONE"
   | "SIMULTANEOUS_ACTIVE"
   | "ALL_DONE"
   | "JUDGING"
@@ -109,7 +112,9 @@ export default function PassPlayPage() {
   const [roundScores, setRoundScores] = useState<Map<string, number>>(new Map());
   const [showPodium, setShowPodium] = useState(false);
   const [podiumDone, setPodiumDone] = useState(false);
-  const [hostStopwatchRunning, setHostStopwatchRunning] = useState(false);
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
+  const [turnEndTime, setTurnEndTime] = useState<string | null>(null);
+  const [lastTurnCompleted, setLastTurnCompleted] = useState(false);
 
   // Tournament state
   const [isTournament, setIsTournament] = useState(false);
@@ -160,9 +165,8 @@ export default function PassPlayPage() {
   }, [router]);
 
   // Timer hooks
-  const stopwatch = useStopwatch(
-    (phase === "PLAYER_ACTIVE" && hostStopwatchRunning) || phase === "SIMULTANEOUS_ACTIVE"
-  );
+  const stopwatch = useStopwatch(phase === "SIMULTANEOUS_ACTIVE");
+  const challengeTimer = useCountdown(turnEndTime);
 
   const currentChallenge = challenges[currentChallengeIndex] ?? null;
   const currentPlayer = players[currentPlayerIndex] ?? null;
@@ -197,16 +201,36 @@ export default function PassPlayPage() {
     }
   }, [play, effectiveTurnStyle]);
 
-  const activatePlayer = useCallback(() => {
-    setTurnStartTime(Date.now());
-    setHostStopwatchRunning(false);
-    setPhase("PLAYER_ACTIVE");
-    play("countdown_go");
-  }, [play]);
+  // 3-2-1-GO countdown before player's turn
+  useEffect(() => {
+    if (phase !== "PLAYER_COUNTDOWN") return;
+    setCountdownValue(3);
+    const t1 = setTimeout(() => setCountdownValue(2), 1000);
+    const t2 = setTimeout(() => setCountdownValue(1), 2000);
+    const t3 = setTimeout(() => setCountdownValue(0), 3000); // GO
+    const t4 = setTimeout(() => {
+      const activeCh = isTournament
+        ? (challenges[tournamentRoundIndex % challenges.length] ?? null)
+        : (challenges[currentChallengeIndex] ?? null);
+      const duration = activeCh?.durationSeconds ?? 60;
+      setTurnEndTime(new Date(Date.now() + duration * 1000).toISOString());
+      setTurnStartTime(Date.now());
+      setPhase("PLAYER_ACTIVE");
+      play("countdown_go");
+    }, 3500);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+  }, [phase, isTournament, challenges, tournamentRoundIndex, currentChallengeIndex, play]);
 
-  const startPlayerActive = useCallback(() => {
-    activatePlayer();
-  }, [activatePlayer]);
+  // Auto-end turn when challenge timer expires
+  useEffect(() => {
+    if (phase !== "PLAYER_ACTIVE" || !turnEndTime) return;
+    if (!challengeTimer.isExpired) return;
+    // Guard against false positive on initial render
+    if (new Date(turnEndTime).getTime() > Date.now()) return;
+    setLastTurnCompleted(false);
+    setTurnEndTime(null);
+    setPhase("TURN_DONE");
+  }, [phase, challengeTimer.isExpired, turnEndTime]);
 
   const completePlayerTurn = useCallback(() => {
     const elapsed = Date.now() - turnStartTime;
@@ -215,15 +239,10 @@ export default function PassPlayPage() {
       next.set(players[currentPlayerIndex].id, elapsed);
       return next;
     });
+    setLastTurnCompleted(true);
+    setTurnEndTime(null);
+    setPhase("TURN_DONE");
     play("submit_success");
-
-    // Check if all players have gone
-    if (currentPlayerIndex + 1 >= players.length) {
-      setPhase("ALL_DONE");
-    } else {
-      setCurrentPlayerIndex((i) => i + 1);
-      setPhase("PLAYER_TURN");
-    }
   }, [turnStartTime, currentPlayerIndex, players, play]);
 
   // Handle ALL_DONE -> choose scoring path
@@ -252,26 +271,9 @@ export default function PassPlayPage() {
 
   const autoScore = useCallback(() => {
     const scores = new Map<string, number>();
-    // Sort by completion time for position-based scoring
-    const completions = Array.from(turnCompletions.entries())
-      .sort((a, b) => a[1] - b[1]);
-
     players.forEach((p) => {
-      const completed = turnCompletions.has(p.id);
-      const position = completions.findIndex(([id]) => id === p.id);
-      let points = 0;
-
-      if (completed) {
-        points += 10; // completion
-        // Speed bonus: up to 8 for first, scaled by position
-        const positionRatio =
-          1 - position / Math.max(1, players.length - 1);
-        points += Math.round(8 * positionRatio);
-      }
-
-      scores.set(p.id, points);
+      scores.set(p.id, turnCompletions.has(p.id) ? 10 : 0);
     });
-
     applyScores(scores);
   }, [turnCompletions, players]);
 
@@ -420,18 +422,11 @@ export default function PassPlayPage() {
   }, [findNextMatch, bracketMatches, play]);
 
   const completeMatchPlayerTurn = useCallback(() => {
+    setLastTurnCompleted(true);
+    setTurnEndTime(null);
+    setPhase("TURN_DONE");
     play("submit_success");
-
-    if (matchPlayerIndex === 0) {
-      // First player done, switch to second
-      setMatchPlayerIndex(1);
-      setPhase("PLAYER_TURN");
-    } else {
-      // Both done, go to judging
-      setPhase("MATCH_JUDGING");
-      play("dramatic_pause");
-    }
-  }, [matchPlayerIndex, play]);
+  }, [play]);
 
   const handleMatchWinner = useCallback(
     (winnerId: string) => {
@@ -575,7 +570,7 @@ export default function PassPlayPage() {
                     </span>
                   ) : (
                     <span className="font-retro text-[10px] text-retro-blue">
-                      STOPWATCH
+                      {currentChallenge.durationSeconds}s TIMED
                     </span>
                   )}
                 </div>
@@ -667,18 +662,50 @@ export default function PassPlayPage() {
                   )}
                 </div>
 
-                <RetroButton variant="primary" size="lg" onClick={isTournament ? startPlayerActive : startPlayerActive}>
-                  START
+                <RetroButton variant="primary" size="lg" onClick={() => setPhase("PLAYER_COUNTDOWN")}>
+                  I&apos;M READY
                 </RetroButton>
               </motion.div>
             );
           })()}
 
-          {/* ─── PLAYER ACTIVE (host stopwatch) ─── */}
+          {/* ─── PLAYER COUNTDOWN (3-2-1-GO) ─── */}
+          {phase === "PLAYER_COUNTDOWN" && (
+            <motion.div
+              key="player-countdown"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center min-h-[60vh]"
+            >
+              <AnimatePresence mode="wait">
+                <motion.span
+                  key={countdownValue}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 1.5, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={cn(
+                    "font-retro text-6xl",
+                    countdownValue === 0 ? "text-retro-green" : "text-retro-gold"
+                  )}
+                  style={{
+                    textShadow: countdownValue === 0
+                      ? "0 0 24px rgba(57,255,20,0.6)"
+                      : "0 0 20px rgba(255,215,0,0.6)",
+                  }}
+                >
+                  {countdownValue === 0 ? "GO!" : countdownValue}
+                </motion.span>
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {/* ─── PLAYER ACTIVE (countdown timer) ─── */}
           {phase === "PLAYER_ACTIVE" && (() => {
             const activePlayer = isTournament ? currentMatchPlayer : currentPlayer;
             const activeCh = isTournament ? tournamentChallenge : currentChallenge;
-            const onEndTurn = isTournament ? completeMatchPlayerTurn : completePlayerTurn;
+            const onDone = isTournament ? completeMatchPlayerTurn : completePlayerTurn;
             if (!activePlayer || !activeCh) return null;
             return (
               <motion.div
@@ -694,22 +721,27 @@ export default function PassPlayPage() {
                   </span>
                 </div>
 
-                {/* Host stopwatch display */}
+                {/* Countdown timer display */}
                 <div className="text-center">
                   <span
                     className={cn(
                       "font-retro text-3xl tabular-nums transition-colors duration-300",
-                      hostStopwatchRunning
-                        ? "text-retro-green"
-                        : "text-retro-muted"
+                      challengeTimer.urgency === "critical"
+                        ? "text-retro-pink"
+                        : challengeTimer.urgency === "warning"
+                          ? "text-retro-gold"
+                          : "text-retro-green"
                     )}
                     style={{
-                      textShadow: hostStopwatchRunning
-                        ? "0 0 12px rgba(57,255,20,0.4)"
-                        : "none",
+                      textShadow:
+                        challengeTimer.urgency === "critical"
+                          ? "0 0 12px rgba(255,45,120,0.4)"
+                          : challengeTimer.urgency === "warning"
+                            ? "0 0 12px rgba(255,215,0,0.4)"
+                            : "0 0 12px rgba(57,255,20,0.4)",
                     }}
                   >
-                    {stopwatch.formatted}
+                    {challengeTimer.formatted}
                   </span>
                 </div>
 
@@ -722,43 +754,87 @@ export default function PassPlayPage() {
                   </p>
                 </RetroCard>
 
-                <div className="flex justify-center gap-3">
-                  {!hostStopwatchRunning ? (
-                    <>
-                      <RetroButton
-                        variant="success"
-                        size="lg"
-                        onClick={() => {
-                          setTurnStartTime(Date.now());
-                          setHostStopwatchRunning(true);
-                        }}
-                      >
-                        START
-                      </RetroButton>
-                      <RetroButton
-                        variant="secondary"
-                        size="md"
-                        onClick={() => {
-                          setHostStopwatchRunning(false);
-                          onEndTurn();
-                        }}
-                      >
-                        SKIP
-                      </RetroButton>
-                    </>
-                  ) : (
-                    <RetroButton
-                      variant="gold"
-                      size="lg"
-                      onClick={() => {
-                        setHostStopwatchRunning(false);
-                        onEndTurn();
-                      }}
-                    >
-                      STOP
-                    </RetroButton>
-                  )}
+                <div className="flex justify-center">
+                  <RetroButton variant="success" size="lg" onClick={onDone}>
+                    I DID IT!
+                  </RetroButton>
                 </div>
+              </motion.div>
+            );
+          })()}
+
+          {/* ─── TURN DONE (transition between players) ─── */}
+          {phase === "TURN_DONE" && (() => {
+            const turnPlayer = isTournament ? currentMatchPlayer : currentPlayer;
+            if (!turnPlayer) return null;
+
+            let buttonLabel: string;
+            let buttonAction: () => void;
+
+            if (isTournament) {
+              if (matchPlayerIndex === 0) {
+                buttonLabel = "NEXT PLAYER";
+                buttonAction = () => {
+                  setMatchPlayerIndex(1);
+                  setPhase("PLAYER_TURN");
+                  play("menu_confirm");
+                };
+              } else {
+                buttonLabel = "JUDGE WINNER";
+                buttonAction = () => {
+                  setPhase("MATCH_JUDGING");
+                  play("dramatic_pause");
+                };
+              }
+            } else {
+              if (currentPlayerIndex + 1 >= players.length) {
+                buttonLabel = "SEE RESULTS";
+                buttonAction = () => {
+                  setPhase("ALL_DONE");
+                  play("menu_confirm");
+                };
+              } else {
+                buttonLabel = "NEXT PLAYER";
+                buttonAction = () => {
+                  setCurrentPlayerIndex((i) => i + 1);
+                  setPhase("PLAYER_TURN");
+                  play("menu_confirm");
+                };
+              }
+            }
+
+            return (
+              <motion.div
+                key={`turn-done-${isTournament ? `${currentMatchId}-${matchPlayerIndex}` : currentPlayerIndex}`}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                className="flex flex-col items-center justify-center min-h-[60vh] space-y-8"
+              >
+                {lastTurnCompleted ? (
+                  <h2
+                    className="font-retro text-2xl text-retro-green uppercase"
+                    style={{ textShadow: "0 0 16px rgba(57,255,20,0.5)" }}
+                  >
+                    DONE!
+                  </h2>
+                ) : (
+                  <h2
+                    className="font-retro text-2xl text-retro-pink uppercase"
+                    style={{ textShadow: "0 0 16px rgba(255,45,120,0.5)" }}
+                  >
+                    TIME&apos;S UP!
+                  </h2>
+                )}
+
+                <PixelAvatar avatarIndex={turnPlayer.avatarIndex} size="lg" />
+                <span className="font-retro text-sm text-retro-text">
+                  {turnPlayer.name}
+                </span>
+
+                <RetroButton variant="primary" size="lg" onClick={buttonAction}>
+                  {buttonLabel}
+                </RetroButton>
               </motion.div>
             );
           })()}
