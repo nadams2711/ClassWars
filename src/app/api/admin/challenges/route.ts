@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { challengeTemplates } from "@/db/schema";
-import { and, like, SQL } from "drizzle-orm";
+import { and, inArray, like, SQL } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -49,4 +49,22 @@ export async function POST(req: NextRequest) {
     .returning();
 
   return NextResponse.json(result[0], { status: 201 });
+}
+
+export async function DELETE(req: NextRequest) {
+  const body = await req.json();
+  const ids: string[] = body.ids;
+
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return NextResponse.json(
+      { error: "ids must be a non-empty array" },
+      { status: 400 }
+    );
+  }
+
+  const result = await db
+    .delete(challengeTemplates)
+    .where(inArray(challengeTemplates.id, ids));
+
+  return NextResponse.json({ deleted: result.rowCount ?? 0 });
 }

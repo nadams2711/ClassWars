@@ -62,6 +62,8 @@ export default function AdminChallengesPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchChallenges = useCallback(async () => {
@@ -70,6 +72,8 @@ export default function AdminChallengesPage() {
       const res = await fetch("/api/admin/challenges");
       if (res.ok) {
         setChallenges(await res.json());
+        setSelectedIds(new Set());
+        setBulkDeleteConfirm(false);
       }
     } catch {
       // ignore
@@ -85,6 +89,53 @@ export default function AdminChallengesPage() {
   const filteredChallenges = challenges.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
   );
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setBulkDeleteConfirm(false);
+  };
+
+  const toggleSelectAll = () => {
+    const filteredIds = filteredChallenges.map((c) => c.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        filteredIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+    setBulkDeleteConfirm(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      const res = await fetch("/api/admin/challenges", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      if (res.ok) {
+        setSelectedIds(new Set());
+        setBulkDeleteConfirm(false);
+        await fetchChallenges();
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const handleCreate = () => {
     setEditingChallenge({
@@ -575,13 +626,41 @@ export default function AdminChallengesPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="font-retro text-[9px] text-retro-muted uppercase tracking-wider mb-3">
-              {filteredChallenges.length} challenge{filteredChallenges.length !== 1 ? "s" : ""}
-            </p>
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={toggleSelectAll}
+                className={cn(
+                  "w-4 h-4 border-2 flex items-center justify-center transition-all shrink-0",
+                  filteredChallenges.length > 0 && filteredChallenges.every((c) => selectedIds.has(c.id))
+                    ? "border-retro-purple bg-retro-purple/20 text-retro-purple-light"
+                    : "border-retro-muted/30 bg-elevated hover:border-retro-muted/50"
+                )}
+              >
+                {filteredChallenges.length > 0 && filteredChallenges.every((c) => selectedIds.has(c.id)) && (
+                  <span className="text-[8px] leading-none">&#10003;</span>
+                )}
+              </button>
+              <p className="font-retro text-[9px] text-retro-muted uppercase tracking-wider">
+                {filteredChallenges.length} challenge{filteredChallenges.length !== 1 ? "s" : ""}
+              </p>
+            </div>
             {filteredChallenges.map((c) => (
               <div key={c.id}>
                 <div className="flex items-center justify-between px-4 py-3 bg-elevated border border-retro-purple/20 hover:border-retro-purple/40 transition-colors">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <button
+                      onClick={() => toggleSelect(c.id)}
+                      className={cn(
+                        "w-4 h-4 border-2 flex items-center justify-center transition-all shrink-0",
+                        selectedIds.has(c.id)
+                          ? "border-retro-purple bg-retro-purple/20 text-retro-purple-light"
+                          : "border-retro-muted/30 bg-elevated hover:border-retro-muted/50"
+                      )}
+                    >
+                      {selectedIds.has(c.id) && (
+                        <span className="text-[8px] leading-none">&#10003;</span>
+                      )}
+                    </button>
                     <span className="font-retro text-[10px] text-retro-text truncate">
                       {c.title}
                     </span>
@@ -641,6 +720,58 @@ export default function AdminChallengesPage() {
           </div>
         )}
       </div>
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t-2 border-retro-purple/40 px-4 py-3">
+          <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
+            <span className="font-retro text-[10px] text-retro-purple-light uppercase">
+              {selectedIds.size} selected
+            </span>
+            <div className="flex items-center gap-3">
+              <RetroButton
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setBulkDeleteConfirm(false);
+                }}
+              >
+                DESELECT
+              </RetroButton>
+              {bulkDeleteConfirm ? (
+                <span className="flex items-center gap-2">
+                  <span className="font-retro text-[9px] text-retro-pink">
+                    Delete {selectedIds.size} challenge{selectedIds.size !== 1 ? "s" : ""}?
+                  </span>
+                  <RetroButton
+                    variant="secondary"
+                    size="md"
+                    onClick={() => setBulkDeleteConfirm(false)}
+                  >
+                    NO
+                  </RetroButton>
+                  <RetroButton
+                    variant="danger"
+                    size="md"
+                    onClick={handleBulkDelete}
+                  >
+                    YES
+                  </RetroButton>
+                </span>
+              ) : (
+                <RetroButton
+                  variant="danger"
+                  size="md"
+                  onClick={() => setBulkDeleteConfirm(true)}
+                >
+                  DELETE SELECTED
+                </RetroButton>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Help modal */}
       {showHelp && (
